@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /*
-GameObject: MazeCell (attach to each cell prefab)
+GameObject: MazeCell 
 Descripción: Representa una celda del laberinto y gestiona paredes y estado de visitado.
 */
 

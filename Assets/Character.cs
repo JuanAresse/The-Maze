@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /*
-GameObject: Character (attach to player prefab root)
+GameObject: Character 
 Descripción: Representa a un personaje en la rejilla del laberinto. Gestiona posición de celda,
 movimiento lógico, facing, visual attachment y powerups del personaje.
 */

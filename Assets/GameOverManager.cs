@@ -5,7 +5,7 @@ using TMPro;
 using UnityEngine.EventSystems;
 
 /*
-GameObject: GameOverManager (attach to a persistent GameObject or created dynamically)
+GameObject: GameOverManager 
 Descripción: Crea/gestiona la UI de fin de juego, muestra resultado y permite reiniciar o volver al menú.
 */
 

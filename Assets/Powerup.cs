@@ -1,7 +1,7 @@
 using UnityEngine;
 
 /*
-GameObject: Powerup (attach to powerup prefab/visual)
+GameObject: Powerup 
 Descripción: Maneja la interacción de recogida del powerup y notifica al Character y manager.
 */
 

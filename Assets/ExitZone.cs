@@ -1,7 +1,7 @@
 using UnityEngine;
 
 /*
-GameObject: ExitZone (attach to a trigger inside a MazeCell)
+GameObject: ExitZone 
 Descripción: Detecta la entrada de un Character y notifica al TurnBasedManager la salida.
 */
 
