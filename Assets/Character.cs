@@ -2,12 +2,15 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
+<<<<<<< HEAD
 /*
 GameObject: Character 
 Descripción: Representa a un personaje en la rejilla del laberinto. Gestiona posición de celda,
 movimiento lógico, facing, visual attachment y powerups del personaje.
 */
 
+=======
+>>>>>>> parent of 34b16b1 (jeje)
 public class Character : MonoBehaviour
 {
     public enum Facing { North, South, East, West }
@@ -19,30 +22,36 @@ public class Character : MonoBehaviour
     private string _name;
 
     public TurnBasedManager manager;
-    public PlayerHealth health;
+    public PlayerHealth health; // Referencia a su PlayerHealth
 
     [SerializeField] private float fixedHeight = 0.5f;
 
     private Rigidbody _rb;
     private Collider _collider;
-        
+    private bool _logicLocked = false;
+
     public Facing CurrentFacing { get; private set; } = Facing.North;
 
+    // Visual model (solo rota el visual, no el root)
     private Transform _visual;
     [SerializeField] private float visualRotateSpeed = 10f;
     private Quaternion _targetVisualLocalRot = Quaternion.identity;
 
+    // Offset local del visual (ajusta en el Inspector si el modelo queda dentro del cubo)
     [SerializeField] private Vector3 _visualLocalOffset = new Vector3(0f, 0.5f, 0f);
 
+    // Nueva referencia pública para que MazeGenerator le asigne la cámara correspondiente
+    public CamaraTerceraPersona cameraController;
+
+    // Exponer la posición de celda públicamente para uso del manager (radar)
     public Vector2Int CellPosition => _pos;
 
+    // --- POWERUPS: queued = recogido este turno, active = disponible durante el siguiente turno ---
     public bool queuedPhase = false;
     public bool queuedTrueRadar = false;
     public bool activePhase = false;
     public bool activeTrueRadar = false;
 
-    // Inicializa el Character con la rejilla, posición inicial y nombre.
-    // Parámetros: grid - matriz de MazeCell, startPos - posición de inicio, playerName - nombre.
     public void Init(MazeCell[,] grid, Vector2Int startPos, string playerName)
     {
         _grid = grid;
@@ -78,27 +87,28 @@ public class Character : MonoBehaviour
         }
     }
 
-    // Actualiza la posición física/visual cada frame tardío.
     private void LateUpdate()
     {
         Vector3 lockedPos = new Vector3(_pos.x, fixedHeight, _pos.y);
         if (_rb != null) _rb.position = lockedPos;
         else transform.position = lockedPos;
 
+        // Suavizar rotación del visual (si existe)
         if (_visual != null)
         {
             _visual.localRotation = Quaternion.Slerp(_visual.localRotation, _targetVisualLocalRot, Time.deltaTime * visualRotateSpeed);
         }
     }
 
-    // Ejecuta una lista de acciones (moves) con un delay entre pasos.
-    // Parámetros: moves - lista de Action; stepDelay - retardo entre pasos.
     public IEnumerator ExecuteMoves(List<System.Action> moves, float stepDelay = 0.25f)
     {
         if (_grid == null) yield break;
 
         foreach (var action in moves)
         {
+            if (_logicLocked) yield break;
+
+            // Capturar estado previo
             Vector2Int previous = _pos;
             Facing previousFacing = CurrentFacing;
 
@@ -108,6 +118,7 @@ public class Character : MonoBehaviour
 
             Debug.Log($"[ExecuteMoves] {name} - después: pos={_pos}, facing={CurrentFacing}");
 
+            // Si hubo cambio de posición u orientación, reportarlo al manager
             if (manager != null && (previous != _pos || previousFacing != CurrentFacing))
             {
                 Debug.Log($"[ExecuteMoves] {name} -> reportando cambio anterior pos={previous}, facing={previousFacing} al manager");
@@ -118,18 +129,23 @@ public class Character : MonoBehaviour
         }
     }
 
-    // Adjunta una instancia visual al Character, preservando canvases relevantes.
-    // Parámetros: visualInstance - GameObject del modelo/visual.
+    // AttachVisual mejorado:
+    // - crea/usa "VisualRoot" para neutralizar escala del prefab Character
+    // - parenta el modelo bajo VisualRoot manteniendo la escala del modelo
+    // - desactiva Renderers del prefab original (placeholder) sin desactivar los del modelo
+    // - PRESERVA los Canvas creados por PlayerHealth (y cualquier canvas hijo del componente PlayerHealth)
     public void AttachVisual(GameObject visualInstance)
     {
         if (visualInstance == null) return;
 
+        // Si nos pasan el prefab en vez de instancia, instanciamos
         GameObject instance = visualInstance;
-        if (visualInstance.scene.rootCount == 0)
+        if (visualInstance.scene.rootCount == 0) // not in scene
         {
             instance = Instantiate(visualInstance);
         }
 
+        // Crear o localizar VisualRoot
         Transform visualRoot = transform.Find("VisualRoot");
         if (visualRoot == null)
         {
@@ -137,6 +153,7 @@ public class Character : MonoBehaviour
             vr.transform.SetParent(transform, false);
             vr.transform.localPosition = _visualLocalOffset;
             vr.transform.localRotation = Quaternion.identity;
+            // Cancelar la escala local del Character para que el modelo no herede la escala del prefab
             Vector3 parentScale = transform.localScale;
             vr.transform.localScale = new Vector3(
                 parentScale.x != 0f ? 1f / parentScale.x : 1f,
@@ -147,7 +164,9 @@ public class Character : MonoBehaviour
         }
         else
         {
+            // Actualizar offset en caso de que se cambie en runtime
             visualRoot.localPosition = _visualLocalOffset;
+            // Recalcular cancelación de escala por si se modificó la escala del padre
             Vector3 parentScale = transform.localScale;
             visualRoot.localScale = new Vector3(
                 parentScale.x != 0f ? 1f / parentScale.x : 1f,
@@ -156,6 +175,7 @@ public class Character : MonoBehaviour
             );
         }
 
+        // Parentar la instancia dentro de VisualRoot (sin alterar su escala/posición relativa al VisualRoot)
         instance.transform.SetParent(visualRoot, false);
         instance.transform.localPosition = Vector3.zero;
         instance.transform.localRotation = Quaternion.identity;
@@ -164,16 +184,19 @@ public class Character : MonoBehaviour
         _visual = instance.transform;
         _targetVisualLocalRot = _visual.localRotation;
 
+        // Recolectamos todos los renderers bajo el Character y los del visual para diferenciarlos.
         var allRenderers = GetComponentsInChildren<Renderer>(true);
         var visualRenderers = _visual.GetComponentsInChildren<Renderer>(true);
         var visualRendererSet = new HashSet<Renderer>(visualRenderers);
 
         foreach (var r in allRenderers)
         {
-            if (visualRendererSet.Contains(r)) continue;
+            if (visualRendererSet.Contains(r)) continue; // es del modelo -> no tocar
+            // Desactivar renderer del prefab/placeholder
             r.enabled = false;
         }
 
+        // PRESERVAR Canvas que pertenecen a PlayerHealth:
         var healthCanvases = new HashSet<UnityEngine.Canvas>();
         var healthComps = GetComponentsInChildren<PlayerHealth>(true);
         foreach (var hp in healthComps)
@@ -182,20 +205,21 @@ public class Character : MonoBehaviour
             foreach (var c in cs) healthCanvases.Add(c);
         }
 
+        // También desactivar cualquier Canvas en el prefab que no pertenezca al visual (si hay),
+        // pero mantener los Canvas de PlayerHealth y los del visual.
         var allCanvases = GetComponentsInChildren<UnityEngine.Canvas>(true);
         var visualCanvases = _visual.GetComponentsInChildren<UnityEngine.Canvas>(true);
         var vcSet = new HashSet<UnityEngine.Canvas>(visualCanvases);
 
         foreach (var c in allCanvases)
         {
-            if (vcSet.Contains(c)) continue;
-            if (healthCanvases.Contains(c)) continue;
+            if (vcSet.Contains(c)) continue;        // es del modelo -> no tocar
+            if (healthCanvases.Contains(c)) continue; // es de PlayerHealth -> no tocar
             c.enabled = false;
         }
     }
 
-    // Teletransporta el personaje a una celda (sin comprobaciones adicionales).
-    // Parámetros: cellPos - posición de celda destino.
+    // Nuevo: teletransporta el personaje a la celda indicada y fuerza centrado inmediato
     public void TeleportTo(Vector2Int cellPos)
     {
         _pos = cellPos;
@@ -209,11 +233,11 @@ public class Character : MonoBehaviour
             transform.position = world;
         }
 
+        // Comprobación inmediata de si la celda es la salida (evita depender solo de triggers)
         CheckForExitAtCurrentCell();
     }
 
-    // Mueve al personaje en la dirección indicada y actualiza facing.
-    // Parámetros: dir - Vector2Int de dirección (up/down/left/right).
+    // Movement: set facing and when turning left/right, request visual rotation.
     public void Move(Vector2Int dir)
     {
         if (_grid == null) return;
@@ -225,6 +249,8 @@ public class Character : MonoBehaviour
 
         var currentCell = _grid[_pos.x, _pos.y];
 
+        // Si el jugador tiene activePhase y hay un muro inmediato en la dirección,
+        // se moverá a la celda ADYACENTE al otro lado del muro (una celda), no 2.
         if (activePhase)
         {
             if (dir == Vector2Int.right)
@@ -233,8 +259,9 @@ public class Character : MonoBehaviour
                 {
                     if (_pos.x + 1 < _width)
                     {
-                        _pos.x += 1;
+                        _pos.x += 1; // mover a la celda al otro lado del muro (adjacente)
                         ApplyPositionImmediately();
+                        // Consumir powerup de un solo uso
                         activePhase = false;
                         Debug.Log($"{name} usó Phase: atravesó muro y se colocó en {_pos} (powerup consumido)");
                         return;
@@ -289,6 +316,7 @@ public class Character : MonoBehaviour
             }
         }
 
+        // Comportamiento por defecto (sin phase o sin muro inmediato)
         if (dir == Vector2Int.right)
         {
             if (currentCell.HasRightWall()) return;
@@ -323,9 +351,10 @@ public class Character : MonoBehaviour
         }
 
         ApplyPositionImmediately();
+
+        // Nota: la notificación al manager ahora la hace ExecuteMoves para centralizar el comportamiento.
     }
 
-    // Aplica la posición física inmediatamente y comprueba salida.
     private void ApplyPositionImmediately()
     {
         Vector3 targetPos = new Vector3(_pos.x, fixedHeight, _pos.y);
@@ -338,10 +367,11 @@ public class Character : MonoBehaviour
             transform.position = targetPos;
         }
 
+        // Comprobación inmediata de si la celda actual contiene la salida
         CheckForExitAtCurrentCell();
     }
 
-    // Comprueba si la celda actual contiene una ExitZone y notifica al manager.
+    // Comprueba si la celda actual contiene un ExitZone y notifica al manager.
     private void CheckForExitAtCurrentCell()
     {
         if (_grid == null) return;
@@ -364,7 +394,7 @@ public class Character : MonoBehaviour
         }
     }
 
-    // Ajusta el facing y, de ser necesario, solicita rotación del visual.
+    // Set facing; if rotateVisual flag true, update target rotation for the visual.
     private void SetFacing(Facing f, bool rotateVisual)
     {
         CurrentFacing = f;
@@ -382,20 +412,19 @@ public class Character : MonoBehaviour
         }
     }
 
-    // Métodos de conveniencia para movimiento.
     public void MoveUp() => Move(Vector2Int.up);
     public void MoveDown() => Move(Vector2Int.down);
     public void MoveLeft() => Move(Vector2Int.left);
     public void MoveRight() => Move(Vector2Int.right);
 
-    // Aviso: Shoot() sin args no está soportado.
+    // Shoot sin argumentos ya no está permitido: emitir warning y no hacer nada.
     public void Shoot()
     {
         Debug.LogWarning($"{name}: Shoot() sin argumentos ya no está permitido. Usa Shoot(...Radar...)");
+        // No ejecuta comportamiento previo.
     }
 
-    // Dispara a una celda objetivo; aplica daño si acierta.
-    // Parámetros: targetCell - celda objetivo donde se disparará.
+    // Nuevo método: disparar a una celda específica (usado por Shoot(...Radar))
     public void ShootAt(Vector2Int targetCell)
     {
         if (manager == null) return;
@@ -403,6 +432,7 @@ public class Character : MonoBehaviour
         Character target = (this == manager.PlayerA) ? manager.PlayerB : manager.PlayerA;
         if (target == null) return;
 
+        // Si el enemigo se encuentra exactamente en la celda objetivo, aplicamos daño.
         if (target.CellPosition == targetCell)
         {
             if (target.health != null)
@@ -417,28 +447,43 @@ public class Character : MonoBehaviour
         }
     }
 
-    // Comprueba si el personaje tiene un tag seguro.
+    public bool IsFacing(Facing f) => CurrentFacing == f;
+
+    private void RecoverFromFall()
+    {
+        Vector3 targetPos = new Vector3(_pos.x, fixedHeight, _pos.y);
+        if (_rb != null)
+        {
+            _rb.position = targetPos;
+        }
+        else
+        {
+            transform.position = targetPos;
+        }
+    }
+
     private bool HasTagSafe(GameObject go, string tag)
     {
         try { return go != null && go.CompareTag(tag); }
         catch (UnityException) { return false; }
-    }
+    }   
 
-    // Evento de trigger que notifica salida si corresponde.
     private void OnTriggerEnter(Collider other)
     {
+        // Log diagnóstico
         Debug.Log($"[OnTriggerEnter] {name} collided with '{(other != null ? other.gameObject.name : "null")}' tag='{(other != null && other.gameObject != null ? other.gameObject.tag : "null")}'");
 
+        // Detectamos salida por tag "Exit" o por componente ExitZone.
         if (HasTagSafe(other.gameObject, "Exit") || other.GetComponent<ExitZone>() != null || other.GetComponentInParent<ExitZone>() != null)
         {
-            Debug.Log($"[OnTriggerEnter] {name} detected ExitZone -> notifying manager {(manager != null ? manager.name : "null")}")
-;
+            Debug.Log($"[OnTriggerEnter] {name} detected ExitZone -> notifying manager {(manager != null ? manager.name : "null")}");
             if (manager != null)
             {
                 manager.PlayerExited(this);
             }
             else
             {
+                // Fallback de diagnóstico: intentar localizar TurnBasedManager en escena y llamarlo
                 var fallback = UnityEngine.Object.FindObjectOfType<TurnBasedManager>();
                 if (fallback != null)
                 {
@@ -453,8 +498,7 @@ public class Character : MonoBehaviour
         }
     }
 
-    // Marca la recogida de un powerup (queued para activar en el siguiente turno).
-    // Parámetros: type - tipo del powerup.
+    // ----------------- POWERUPS API -----------------
     public void CollectPowerup(Powerup.PowerupType type)
     {
         if (type == Powerup.PowerupType.Phase)
@@ -469,7 +513,7 @@ public class Character : MonoBehaviour
         }
     }
 
-    // Promueve powerups queued a active al inicio del turno.
+    // Called by manager when the character's turn starts: promote queued -> active
     public void PromoteQueuedPowerups()
     {
         if (queuedPhase)
@@ -486,7 +530,7 @@ public class Character : MonoBehaviour
         }
     }
 
-    // Limpia powerups activos al final del turno.
+    // Called at the end of the character's turn to expire active effects
     public void ClearActivePowerups()
     {
         if (activePhase || activeTrueRadar)

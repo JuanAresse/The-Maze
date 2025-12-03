@@ -2,15 +2,21 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
+<<<<<<< HEAD
 /*
 GameObject: MovementParser 
 Descripción: Parsea scripts de texto en acciones ejecutables por Character (Move, Shoot, Repeat, Wait).
 */
 
+=======
+// Parser de comandos de Character:
+// - Comandos simples: MoveUp(), MoveDown(), MoveLeft(), MoveRight(), Wait()
+// - Repeat(n){ ... } anidado
+// - Shoot(...) requiere que uno de sus argumentos sea Radar (ej: Shoot(MoveUp;Radar))
+//   y permite modificadores antes de Radar: TurnLeft, TurnRight, MoveUp, MoveDown, MoveLeft, MoveRight
+>>>>>>> parent of 34b16b1 (jeje)
 public static class MovementParser
 {
-    // Parse: convierte un script en lista de acciones para un Character.
-    // Parámetros: script - cadena con comandos; character - instancia objetivo.
     public static List<Action> Parse(string script, Character character)
     {
         var tokens = Tokenize(script);
@@ -18,7 +24,7 @@ public static class MovementParser
         return ParseSequence(tokens, ref index, character);
     }
 
-    // Tokenize: convierte el script en tokens manejando paréntesis y llaves.
+    // Tokenizer robusto: maneja paréntesis anidados en funciones (ej. Shoot(MoveLeft();MoveUp();Radar))
     private static List<string> Tokenize(string script)
     {
         var s = (script ?? "").Replace("\r", "").Replace("\n", "");
@@ -28,17 +34,21 @@ public static class MovementParser
         {
             char c = s[i];
 
+            // Saltar espacios
             if (char.IsWhiteSpace(c)) { i++; continue; }
 
+            // Separadores simples
             if (c == ';') { i++; continue; }
             if (c == '}') { tokens.Add("}"); i++; continue; }
 
+            // Identificador o palabra (puede seguir con paréntesis)
             if (char.IsLetterOrDigit(c) || c == '_')
             {
                 int start = i;
                 while (i < s.Length && (char.IsLetterOrDigit(s[i]) || s[i] == '_')) i++;
                 string ident = s.Substring(start, i - start);
 
+                // Si viene '(' inmediatamente, leer hasta paréntesis de cierre correspondiente
                 if (i < s.Length && s[i] == '(')
                 {
                     int parenDepth = 0;
@@ -53,8 +63,10 @@ public static class MovementParser
                         }
                         i++;
                     }
+                    // Si no se cerró, tomamos hasta el final (tolerancia)
                     string inside = s.Substring(argStart + 1, Math.Max(0, i - argStart - 2 + (parenDepth == 0 ? 0 : 1)));
                     string funcToken = ident + "(" + inside + ")";
+                    // Si justo después está '{' (Repeat case), anexar '{'
                     if (i < s.Length && s[i] == '{')
                     {
                         funcToken += "{";
@@ -64,6 +76,7 @@ public static class MovementParser
                 }
                 else if (i < s.Length && s[i] == '{')
                 {
+                    // Caso Repeat(n){ con ident seguido de {
                     tokens.Add(ident + "{");
                     i++;
                 }
@@ -75,15 +88,16 @@ public static class MovementParser
                 continue;
             }
 
+            // Llaves de apertura por si aparecen solas
             if (c == '{') { tokens.Add("{"); i++; continue; }
 
+            // Caracteres inesperados: saltar
             i++;
         }
 
         return tokens;
     }
 
-    // ParseSequence: parsea una secuencia de tokens en acciones (soporta Repeat).
     private static List<Action> ParseSequence(List<string> tokens, ref int i, Character character)
     {
         var result = new List<Action>();
@@ -97,9 +111,11 @@ public static class MovementParser
                 break;
             }
 
+            // Detectar Repeat(n){ token forms: "Repeat(3){" or "Repeat(3){" merged by tokenizer
             if (t.StartsWith("Repeat", StringComparison.OrdinalIgnoreCase) && t.EndsWith("{"))
             {
                 var innerRepeat = t;
+                // extraer número
                 int count = 1;
                 try
                 {
@@ -113,8 +129,8 @@ public static class MovementParser
                 }
                 catch { count = 1; }
 
-                i++;
-                var inner = ParseSequence(tokens, ref i, character);
+                i++; // avanzar después del token Repeat(...)
+                var inner = ParseSequence(tokens, ref i, character); // consume hasta matching '}'
                 for (int k = 0; k < count; k++) result.AddRange(inner);
                 continue;
             }
@@ -127,12 +143,12 @@ public static class MovementParser
         return result;
     }
 
-    // TokenToAction: convierte un token en Action conocida (Move, Wait, Shoot...).
     private static Action TokenToAction(string token, Character character)
     {
         if (string.IsNullOrWhiteSpace(token)) return null;
         string norm = token.Trim();
 
+        // Soporte directo para tokens simples (con o sin paréntesis)
         switch (norm)
         {
             case "MoveUp()":
@@ -155,11 +171,12 @@ public static class MovementParser
                 return null;
         }
 
+        // Funciones con argumentos: formato ident(args)
         int p = norm.IndexOf('(');
         if (p > 0 && norm.EndsWith(")"))
         {
             var name = norm.Substring(0, p);
-            var args = norm.Substring(p + 1, norm.Length - p - 2);
+            var args = norm.Substring(p + 1, norm.Length - p - 2); // contenido dentro de paréntesis
 
             if (string.Equals(name, "Shoot", StringComparison.OrdinalIgnoreCase))
             {
@@ -174,7 +191,7 @@ public static class MovementParser
         return null;
     }
 
-    // BuildShootWithArgsAction: construye la acción de Shoot(...) interpretando modificaciones y Radar.
+    // Construye la Action que calcula la celda objetivo a partir de la secuencia interior y dispara.
     private static Action BuildShootWithArgsAction(string args, Character character)
     {
         var parts = new List<string>();
@@ -184,6 +201,7 @@ public static class MovementParser
             foreach (var r in raw) parts.Add(r.Trim());
         }
 
+        // Buscar Radar (puede ser "Radar" o "Radar()") - debe existir
         int radarIndex = parts.FindIndex(p => string.Equals(p, "Radar", StringComparison.OrdinalIgnoreCase) || string.Equals(p, "Radar()", StringComparison.OrdinalIgnoreCase));
         if (radarIndex < 0)
         {
@@ -193,6 +211,7 @@ public static class MovementParser
 
         var modifications = parts.GetRange(0, radarIndex);
 
+        // Devolver la acción que al invocarse calcula la celda objetivo y llama a ShootAt
         return () =>
         {
             if (character == null || character.manager == null)
@@ -208,6 +227,7 @@ public static class MovementParser
 
             Debug.Log($"[Shoot] {character.name} - radar inicial pos={pos}, facing={facing}, mods=[{string.Join(";", modifications)}]");
 
+            // Helpers para rotar orientación y obtener deltas relativos
             Character.Facing RotateLeft(Character.Facing f)
             {
                 switch (f)
@@ -255,6 +275,7 @@ public static class MovementParser
             UnityEngine.Vector2Int DeltaLeft(Character.Facing f) => -DeltaRight(f);
             UnityEngine.Vector2Int DeltaBack(Character.Facing f) => -DeltaForward(f);
 
+            // Aplicar modificaciones en orden (case-insensitive)
             foreach (var rawMod in modifications)
             {
                 var mod = rawMod;
