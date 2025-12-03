@@ -6,17 +6,14 @@ using UnityEngine.SceneManagement;
 using UnityEditor;
 #endif
 
-<<<<<<< HEAD
 /*
-GameObject: ControlMenu 
+GameObject: ControlMenu (attach to UI root in MainMenu or persistent manager)
 Descripción: Gestiona navegación de menús, pausa, carga/reinicio de escenas y paneles UI.
 */
 
-=======
->>>>>>> parent of 34b16b1 (jeje)
 public class ControlMenu : MonoBehaviour
 {
-    [Header("Escenas")]
+    [Header("Escenas")]             
     [SerializeField] private string gameplaySceneName = "The maze";
     [SerializeField] private string mainMenuSceneName = "MENU";
     [SerializeField] private string savedScenePlayerPrefKey = "SavedScene";
@@ -41,6 +38,7 @@ public class ControlMenu : MonoBehaviour
     private bool isPaused = false;
     private static ControlMenu s_instance;
 
+    // Awake: inicializa persistencia opcional y panel activo por defecto.
     private void Awake()
     {
 #if UNITY_EDITOR
@@ -67,16 +65,19 @@ public class ControlMenu : MonoBehaviour
             SetAllPanelsInactive();
     }
 
+    // OnEnable: suscribe al evento de carga de escena.
     private void OnEnable()
     {
         SceneManager.sceneLoaded += OnSceneLoaded;
     }
 
+    // OnDisable: desuscribe del evento de carga de escena.
     private void OnDisable()
     {
         SceneManager.sceneLoaded -= OnSceneLoaded;
     }
 
+    // OnSceneLoaded: restaura tiempo y estado de pausa al cargar escena.
     private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
         Time.timeScale = 1f;
@@ -89,6 +90,7 @@ public class ControlMenu : MonoBehaviour
             pausePanel.SetActive(false);
     }
 
+    // Update: detecta tecla Escape para alternar pausa.
     private void Update()
     {
         if (Input.GetKeyDown(KeyCode.Escape))
@@ -103,6 +105,7 @@ public class ControlMenu : MonoBehaviour
         }
     }
 
+    // Desactiva todos los paneles conocidos.
     private void SetAllPanelsInactive()
     {
         if (mainMenuPanel != null) mainMenuPanel.SetActive(false);
@@ -112,12 +115,14 @@ public class ControlMenu : MonoBehaviour
         if (pausePanel != null) pausePanel.SetActive(false);
     }
 
+    // Activa un panel y desactiva los demás.
     private void SetActivePanel(GameObject panel)
     {
         SetAllPanelsInactive();
         if (panel != null) panel.SetActive(true);
     }
 
+    // Busca el panel de pausa en la escena por nombre, tag o en canvases.
     private GameObject FindPausePanelInScene()
     {
         var g = GameObject.Find("PausePanel");
@@ -140,6 +145,7 @@ public class ControlMenu : MonoBehaviour
         return null;
     }
 
+    // Busca recursivamente un hijo por nombre.
     private Transform FindChildByNameRecursive(Transform parent, string name)
     {
         foreach (Transform child in parent)
@@ -151,9 +157,11 @@ public class ControlMenu : MonoBehaviour
         return null;
     }
 
+    // Normaliza un nombre de escena para comparación.
     private static string NormalizeSceneName(string name) =>
         string.IsNullOrEmpty(name) ? string.Empty : name.Replace(" ", "").ToLowerInvariant();
 
+    // Intenta resolver un nombre de escena en Build Settings.
     private bool TryResolveSceneNameInBuild(string requestedName, out string resolvedName)
     {
         resolvedName = string.Empty;
@@ -179,6 +187,7 @@ public class ControlMenu : MonoBehaviour
         return false;
     }
 
+    // Inicia la escena de gameplay configurada.
     public void Play()
     {
         if (string.IsNullOrEmpty(gameplaySceneName))
@@ -195,6 +204,7 @@ public class ControlMenu : MonoBehaviour
         Debug.LogError($"No se encontró la escena '{gameplaySceneName}' en Build Settings.");
     }
 
+    // Carga un juego guardado o muestra el panel de carga.
     public void LoadGame()
     {
         string savedScene = PlayerPrefs.GetString(savedScenePlayerPrefKey, string.Empty);
@@ -210,10 +220,12 @@ public class ControlMenu : MonoBehaviour
             Play();
     }
 
+    // Atajos para abrir paneles.
     public void OpenOptions() => SetActivePanel(optionsPanel ?? mainMenuPanel);
     public void OpenInstructions() => SetActivePanel(instructionsPanel ?? mainMenuPanel);
     public void BackToMainMenu() => SetActivePanel(mainMenuPanel);
 
+    // Sale de la aplicación o de Play Mode en el editor.
     public void Exit()
     {
 #if UNITY_EDITOR
@@ -223,12 +235,14 @@ public class ControlMenu : MonoBehaviour
 #endif
     }
 
+    // Alterna pausa/resume.
     public void TogglePause()
     {
         if (isPaused) Resume();
         else Pause();
     }
 
+    // Activa el panel de pausa y detiene el tiempo.
     public void Pause()
     {
         if (pausePanel == null)
@@ -244,6 +258,7 @@ public class ControlMenu : MonoBehaviour
         Cursor.lockState = CursorLockMode.None;
     }
 
+    // Reanuda el juego desde pausa.
     public void Resume()
     {
         if (pausePanel != null) pausePanel.SetActive(false);
@@ -253,6 +268,7 @@ public class ControlMenu : MonoBehaviour
         Cursor.lockState = CursorLockMode.None;
     }
 
+    // Reinicia la escena activa.
     public void RestartLevel()
     {
         Time.timeScale = 1f;
@@ -262,6 +278,7 @@ public class ControlMenu : MonoBehaviour
     public void OpenOptionsFromPause() => OpenOptions();
     public void OpenInstructionsFromPause() => OpenInstructions();
 
+    // Vuelve al estado de pausa mostrando el panel correspondiente.
     public void BackToPause()
     {
         SetAllPanelsInactive();
@@ -270,25 +287,28 @@ public class ControlMenu : MonoBehaviour
         Time.timeScale = 0f;
     }
 
-    
-    public void BackToMainMenuScene()
+    // Nueva función: desde el menú de pausa vuelve a la escena del menú principal.
+    public void BackToMainMenuFromPause()
     {
         if (string.IsNullOrEmpty(mainMenuSceneName))
         {
-            Debug.LogWarning("ControlMenu: el nombre de la escena del menu principal no está configurado.");
+            Debug.LogWarning("ControlMenu: mainMenuSceneName no configurado.");
             return;
         }
+
+        // Aseguramos estado limpio antes de cargar
+        SetAllPanelsInactive();
+        isPaused = false;
+        Time.timeScale = 1f;
+        Cursor.visible = true;
+        Cursor.lockState = CursorLockMode.None;
+
         if (TryResolveSceneNameInBuild(mainMenuSceneName, out string resolved))
         {
-            // Aseguramos que el juego no quede pausado al cargar el menú principal
-            Time.timeScale = 1f;
-            isPaused = false;
-            Cursor.visible = true;
-            Cursor.lockState = CursorLockMode.None;
-
             SceneManager.LoadScene(resolved);
             return;
         }
+
         Debug.LogError($"No se encontró la escena '{mainMenuSceneName}' en Build Settings.");
     }
 }

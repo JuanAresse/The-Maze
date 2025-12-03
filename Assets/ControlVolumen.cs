@@ -1,28 +1,25 @@
 using UnityEngine;
 using UnityEngine.UI;
 
-<<<<<<< HEAD
 /*
-GameObject: ControlVolumen 
+GameObject: ControlVolumen (attach to UI element that manages audio volume)
 Descripción: Sincroniza un Slider con el volumen de un AudioSource y aplica cambios.
 */
 
-=======
->>>>>>> parent of 34b16b1 (jeje)
 public class ControlVolumen : MonoBehaviour
 {
     public AudioSource musicaFondo;
     public Slider sliderVolumen;
 
+    // Start: inicializa el slider y registra el listener.
     void Start()
     {
-        // Si querés que el slider arranque con el volumen actual de la música
         sliderVolumen.value = musicaFondo.volume;
-
-        // Cuando cambie el valor del slider, llamará al método CambiarVolumen
         sliderVolumen.onValueChanged.AddListener(CambiarVolumen);
     }
 
+    // CambiarVolumen: aplica el valor del slider al AudioSource.
+    // Parámetros: valor - nuevo volumen (0..1).
     public void CambiarVolumen(float valor)
     {
         musicaFondo.volume = valor;

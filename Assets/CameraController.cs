@@ -1,14 +1,11 @@
 using System.Collections;
 using UnityEngine;
 
-<<<<<<< HEAD
 /*
-GameObject: CameraController
+GameObject: CameraController (attach to Camera)
 Descripción: Centra y ajusta el zoom/posición de la cámara para cubrir todas las MazeCell de la escena.
 */
 
-=======
->>>>>>> parent of 34b16b1 (jeje)
 [DisallowMultipleComponent]
 [RequireComponent(typeof(Camera))]
 public class CameraController : MonoBehaviour
@@ -38,6 +35,7 @@ public class CameraController : MonoBehaviour
     Vector3 _posVelocity;
     float _sizeVelocity;
 
+    // Start: inicializa componentes y espera la generación de MazeCell antes de centrar.
     IEnumerator Start()
     {
         _cam = GetComponent<Camera>();
@@ -67,6 +65,7 @@ public class CameraController : MonoBehaviour
         CenterAndZoom();
     }
 
+    // CenterAndZoom: calcula el bounding box de MazeCell y ajusta posición/tamaño de cámara.
     public void CenterAndZoom()
     {
 #if UNITY_2023_2_OR_NEWER
