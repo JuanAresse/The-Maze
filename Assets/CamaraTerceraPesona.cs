@@ -1,7 +1,7 @@
 using UnityEngine;
 
 /*
-GameObject: CamaraTerceraPersona (attach to camera GameObject)
+GameObject: CamaraTerceraPersona 
 Descripción: Sigue a un objetivo (Transform) con un offset diagonal y suavizado.
 */
 

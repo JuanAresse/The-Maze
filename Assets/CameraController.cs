@@ -2,7 +2,7 @@ using System.Collections;
 using UnityEngine;
 
 /*
-GameObject: CameraController (attach to Camera)
+GameObject: CameraController 
 Descripción: Centra y ajusta el zoom/posición de la cámara para cubrir todas las MazeCell de la escena.
 */
 

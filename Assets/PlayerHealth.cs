@@ -2,7 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /*
-GameObject: PlayerHealth (attach to Character prefab)
+GameObject: PlayerHealth 
 Descripción: Gestiona la barra de vida en espacio mundial, el daño y notifica muerte al manager.
 */
 

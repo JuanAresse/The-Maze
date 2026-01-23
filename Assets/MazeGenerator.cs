@@ -4,7 +4,7 @@ using System.Linq;
 using UnityEngine;
 
 /*
-GameObject: MazeGenerator (attach to an empty GameObject in the level)
+GameObject: MazeGenerator 
 Descripción: Genera la rejilla de MazeCell, define entradas/salida, spawnea powerups y characters.
 */
 

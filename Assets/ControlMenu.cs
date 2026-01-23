@@ -7,7 +7,7 @@ using UnityEditor;
 #endif
 
 /*
-GameObject: ControlMenu (attach to UI root in MainMenu or persistent manager)
+GameObject: ControlMenu 
 Descripción: Gestiona navegación de menús, pausa, carga/reinicio de escenas y paneles UI.
 */
 

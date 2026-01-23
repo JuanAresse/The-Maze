@@ -2,7 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /*
-GameObject: ControlVolumen (attach to UI element that manages audio volume)
+GameObject: ControlVolumen 
 Descripción: Sincroniza un Slider con el volumen de un AudioSource y aplica cambios.
 */
 

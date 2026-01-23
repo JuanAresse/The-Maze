@@ -5,7 +5,7 @@ using UI = UnityEngine.UI;
 using UnityEngine.EventSystems;
 
 /*
-GameObject: TurnBasedManager (attach to a central GameObject, e.g. "GameManager")
+GameObject: TurnBasedManager 
 Descripción: Gestiona el turno por turno entre dos personajes, crea UI por cámara,
 controla temporizadores de edición, historial de radar y notifica estados de fin de juego.
 */

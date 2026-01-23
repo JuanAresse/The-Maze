@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /*
-GameObject: MovementParser (utility static class, no GameObject)
+GameObject: MovementParser 
 Descripción: Parsea scripts de texto en acciones ejecutables por Character (Move, Shoot, Repeat, Wait).
 */
 
