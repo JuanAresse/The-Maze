@@ -1,100 +1,99 @@
-FLUJO GENERAL DEL PROYECTO THEMAZE (Unity - C#)
+# The Maze
 
-1. Inicio y Generación del Laberinto
-   - El juego inicia, y el script principal encargado de la generación del escenario es "MazeGenerator".
-   - Este script construye una grilla de "MazeCell" instanciando cada celda del laberinto. Define las entradas, salidas y distribuye los powerups (como “Phase” y “TrueRadar”) en celdas aleatorias.
-   - Además, MazeGenerator crea los personajes ("Character") en las posiciones iniciales y asigna las cámaras a cada jugador.
+[English](README_EN.md) · Español
 
-2. Interfaz y Control de Menús
-   - El script "ControlMenu" gestiona los paneles de menú, opciones, instrucciones, pausa y navegación entre escenas. Interactúa con la UI y detecta eventos como presionar “ESC” para pausar.
+**Programar una estrategia, validarla y verla ejecutarse en un laberinto procedural.**
 
-3. Movimiento y Comandos
-   - Los jugadores pueden ingresar scripts de movimiento usando la UI. Estos scripts son interpretados por "MovementParser", que traduce comandos de texto en acciones (mover, disparar, repetir, etc.).
-   - El "TurnBasedManager" gestiona los turnos: determina cuándo puede editar el jugador, ejecuta los movimientos según el script, alterna turnos y controla el tiempo límite para editar.
+The Maze es un juego local de estrategia por turnos para dos personas, desarrollado con **Unity y C#**. Cada jugador construye una secuencia visual de acciones para llegar a la salida o derrotar a su rival. El escenario cambia en cada partida y las decisiones se ejecutan con reglas explícitas de tiempo, presupuesto y disponibilidad de poderes.
 
-4. Acciones en el Laberinto
-   - Cada vez que un "Character" se mueve, se actualiza su posición y facing. Si entra en una celda con una "ExitZone", el juego detecta que el jugador salió exitosamente.
-   - Los personajes pueden recoger "Powerup", que les permite habilidades especiales en su siguiente turno.
-   - Los personajes tienen barras de vida administradas por "PlayerHealth". Si reciben daño y su vida llega a cero, el juego termina.
+El interés técnico del proyecto está en convertir una intención del usuario en un plan estructurado: editar bloques, validar restricciones y ejecutar pasos sobre un entorno con estado. Es un caso de ingeniería de software que permite explorar algoritmos, modelado de acciones, control de ejecución y calidad de interfaces.
 
-5. Cámaras y Visuales
-   - Cada jugador tiene una cámara propia gestionada por "CamaraTerceraPersona", la cual sigue al player correspondiente desde una perspectiva diagonal suave.
-   - El script "CameraController" ajusta la cámara principal para centrar y encuadrar todo el laberinto en pantalla.
-   - "LogCameraTargets" sirve para depuración y registrar información de cámaras y render textures en la escena.
+Esta presentación describe la entrega actualizada del **20 de octubre de 2026**.
 
-6. Game Over y Feedback
-   - Al finalizar la partida (salida o muerte de un personaje), "GameOverManager" muestra la interfaz de fin de juego, indicando el ganador, y permite reiniciar o volver al menú principal.
-   - "ControlVolumen" gestiona el volumen de la música y lo sincroniza con la UI.
-   - Toda la lógica interactúa con la UI mediante paneles, botones y campos visuales.
+## Capturas
 
--------------------------------------------------
-## EXPLICACIÓN DE CADA SCRIPT
+![Selección de tamaño para una nueva partida](docs/assets/01-nueva-partida.png)
 
-1. MazeGenerator
-   - Construye el laberinto instanciando MazeCell como grilla 2D.
-   - Define la entrada, salida, y asigna celdas para spawneo de personajes y powerups.
-   - Asocia las cámaras y el manager de turnos a los personajes.
-   - Llama a TurnBasedManager para iniciar la gestión del flujo de turnos.
+![Partida local con planificación visual de acciones](docs/assets/02-partida.png)
 
-2. MazeCell
-   - Cada objeto representa una celda del laberinto; controla paredes (activas/inactivas).
-   - Posee métodos para limpiar o consultar el estado de sus muros, y marca si fue visitada.
+## La experiencia
 
-3. Character
-   - Representa a cada jugador; maneja posición, facing, movimiento, visuales, y recolección de powerups.
-   - Al moverse, consulta sus celdas y notifica al TurnBasedManager.
-   - Puede ejecutar comandos desde la UI: moverse, teletransportarse, disparar a otra celda (usando radar), y recoger powerups.
-   - Controla el facing y el modelo visual que lo representa.
+1. Elegir un laberinto de 4×4, 6×6 u 8×8.
+2. Preparar una ruta en una bandeja de acciones mediante clic o arrastre.
+3. Combinar movimientos, espera, disparo y repeticiones anidadas.
+4. Validar y ejecutar la ruta, observando su avance paso a paso.
+5. Alternar turnos hasta alcanzar la salida o reducir la vida del rival a cero.
 
-4. TurnBasedManager
-   - Gestiona la lógica de turnos entre los dos jugadores.
-   - Permite editar instrucciones/script para cada personaje, ejecuta los movimientos, alterna turnos, y determina el final de la partida por salida o por vida.
-   - Administra la UI para cada jugador (panel de comandos, botones de ejecución/continuo).
-   - Controla el tiempo de edición y la interacción con los powerups y daño.
+Cada turno dispone de 30 segundos, hasta ocho acciones ejecutadas y un disparo. Las repeticiones consumen el presupuesto de las acciones que contienen. Una ruta inválida permanece disponible para corregirla.
 
-5. Powerup
-   - Se adjunta a objetos de powerup; permite que el player los recoja (Fase, Radar verdadero).
-   - Notifica al Character y al manager y se autoelimina al ser recogido.
-   - Permite a los jugadores atravesar muros (“Phase”) o ver la posición/oponente exacta (“TrueRadar”).
+Los poderes **Phase** y **Radar verdadero** añaden decisiones sobre cuándo atravesar un muro o consultar la ubicación actual del rival. El radar normal trabaja con información histórica, por lo que la estrategia también depende de información incompleta.
 
-6. PlayerHealth
-   - Adjunta a los personajes, controla la vida actual y máximo.
-   - Muestra la barra de vida como UI en el mundo.
-   - Si el life baja a 0, avisa al manager que el personaje ha perdido.
+## Decisiones técnicas
 
-7. MovementParser
-   - Convierte los scripts de texto en listas de acciones Unity que el Character puede ejecutar (incluye operaciones como Repeat, Shoot, etc.).
+| Decisión | Motivo y comportamiento |
+|---|---|
+| Generación mediante recorrido aleatorio en profundidad | Construir una grilla conectada con recorridos diferentes entre partidas. |
+| Separar edición, validación y ejecución | Mantener una representación explícita del plan y comprobarla antes de modificar el entorno. |
+| Contabilizar acciones expandidas | Evitar que las repeticiones eludan los límites de movimientos o disparos. |
+| Limitar profundidad y cantidad de bloques | Acotar el trabajo del validador y rechazar estructuras inválidas o cíclicas. |
+| Una cámara y un panel activos | Concentrar la interacción en el jugador que planifica o ejecuta su turno. |
+| Herramientas de diagnóstico solo en desarrollo | Separar los controles de prueba de la versión jugable final. |
 
-8. ExitZone
-   - Zona específica de salida en el laberinto.
-   - Detecta cuando un Character entra en la salida y lo notifica al manager, finalizando la partida.
+## Arquitectura
 
-9. ControlMenu
-   - Gestiona la UI de menús, opciones y pausa.
-   - Se encarga de cargar escenas, activar/desactivar paneles, y navegación en la UI.
+```mermaid
+flowchart LR
+    Menu[Menú y selección de tamaño] --> Generator[MazeGenerator]
+    Generator --> Grid[Grilla de MazeCell]
+    Generator --> Manager[TurnBasedManager]
+    Board[MovementBoard: edición visual] --> Blocks[ActionBlock: plan del jugador]
+    Blocks --> Validate[ActionPlan: validación y expansión]
+    Validate --> Steps[PlanStep: pasos ejecutables]
+    Steps --> Manager
+    Manager --> Character[Character: acciones y poderes]
+    Character --> Grid
+    Character --> Health[PlayerHealth]
+    Character --> Exit[ExitZone]
+    Health --> Result[Fin de partida]
+    Exit --> Result
+```
 
-10. ControlVolumen
-    - Conecta el slider de volumen de la UI con el AudioSource de la música de fondo.
-    - Permite alterar el volumen del juego desde la interfaz.
+`ActionPlan` representa y valida el plan; `MovementBoard` resuelve la interacción; `TurnBasedManager` coordina turnos, tiempo y ejecución; `Character` aplica acciones en la grilla. El [diagrama de clases ampliado](docs/assets/arquitectura-clases.svg) muestra también interfaz, audio y herramientas de desarrollo.
 
-11. CameraController
-    - Centra y ajusta automáticamente la cámara para visualizar el laberinto completo.
-    - Soporta modos ortográficos y perspectiva y suavizado del movimiento.
+## Desarrollo y evolución
 
-12. LogCameraTargets
-    - Script para depuración: muestra información sobre cámaras y texturas renderizadas.
+El desarrollo original combinó generación procedural, creación de personajes mediante código y control por instrucciones de texto. La actualización de 2026 sustituyó ese editor por bloques visuales, unificó la cámara del turno activo y formalizó la validación de planes.
 
-13. GameOverManager
-    - Muestra la interfaz final de la partida (quién ganó y quién perdió).
-    - Permite reiniciar la partida o volver al menú, mostrando los resultados mediante la UI.
-    - Crea paneles y botones si no existen.
+La bitácora registra un proceso de revisión del comportamiento existente, decisiones de diseño, implementación, revisión independiente y corrección de regresiones. Entre los casos tratados aparecen la pausa del reloj, los editores superpuestos, el arrastre sobre elementos recortados y la publicación de compilaciones sin archivos obsoletos.
 
-14. CamaraTerceraPersona
-    - Controla el seguimiento de la cámara al jugador, manteniendo siempre un ángulo y distancia fija y suave.
+El proyecto incluye comprobaciones de planes, integración y regresión de interfaz.
 
--------------------------------------------------
-## RESUMEN DE INTERACCIONES
+## Desarrollo individual y metodología
 
-- El ciclo principal es: MazeGenerator crea el entorno y personajes, TurnBasedManager coordina turnos y ejecuciones, y los scripts de movimiento son interpretados y ejecutados en los Character.
-- El juego finaliza si un player sale por la ExitZone o pierde toda su vida (PlayerHealth). Esto lo gestiona GameOverManager.
-- Todos los scripts de UI y volumen ofrecen un feedback claro para el jugador y un control total de la experiencia.
+Desarrollé The Maze de forma individual, abordando la generación procedural, el modelo de acciones, la validación de planes, las mecánicas y la interfaz. La evolución del proyecto conectó el control mediante instrucciones con una planificación visual y restricciones explícitas de ejecución.
+
+El trabajo siguió un proceso iterativo: definir reglas, separar responsabilidades, implementar el comportamiento, comprobar casos y corregir regresiones. La actualización de 2026 incorporó asistencia de Codex en implementación y documentación, bajo decisiones de diseño y revisión del comportamiento.
+
+## Tecnologías
+
+**C# · Unity 6000.2.2f1 · Universal Render Pipeline · Unity UI · TextMeshPro · Input System · PowerShell**
+
+## Ejecutar y explorar
+
+1. Clonar este repositorio y añadir su carpeta raíz en Unity Hub.
+2. Abrirlo con **Unity 6000.2.2f1**. Unity regenerará sus cachés y restaurará los paquetes.
+3. Abrir `Assets/Scenes/MENU.unity` y pulsar Play.
+
+Para generar un ejecutable de Windows, usar el menú de compilación de Unity. El código del proceso de build se encuentra en `Assets/Editor/MazeBuild.cs`. El ejecutable y sus dependencias no se almacenan como código fuente en este repositorio.
+
+[Manual de juego](COMO_JUGAR.md) · [Documento de diseño](GDD.md)
+
+## Alcance
+
+The Maze es un juego local. El plan lo construye la persona; su ejecución utiliza reglas deterministas sobre un escenario generado proceduralmente. La representación de acciones, la validación previa y la gestión explícita del estado forman parte del diseño del motor de juego.
+
+El equilibrio competitivo requiere partidas prolongadas entre personas. El proyecto no incluye multijugador en red ni guardado de partidas en curso.
+
+## Créditos
+
+Desarrollo: **Juan Arese**. Los modelos, materiales y recursos incorporados conservan su autoría original. Música: “Lets go back”, de Patrick Patrikios, y “Soaring”, de The Grey Room / Golden Palms. La publicación de código y recursos debe respetar las licencias correspondientes.

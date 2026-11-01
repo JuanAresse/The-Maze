@@ -1,12 +1,6 @@
-﻿using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
-
-/*
-GameObject: MazeGenerator 
-Descripción: Genera la rejilla de MazeCell, define entradas/salida, spawnea powerups y characters.
-*/
 
 public class MazeGenerator : MonoBehaviour
 {
@@ -16,412 +10,294 @@ public class MazeGenerator : MonoBehaviour
     [SerializeField] private GameObject _characterPrefab;
     [SerializeField] private CamaraTerceraPersona _cameraP1Controller;
     [SerializeField] private CamaraTerceraPersona _cameraP2Controller;
-
     [SerializeField] private GameObject _player1ModelPrefab;
     [SerializeField] private GameObject _player2ModelPrefab;
-
     [SerializeField] private GameObject _powerupPhasePrefab;
     [SerializeField] private GameObject _powerupTrueRadarPrefab;
 
-    private MazeCell[,] _mazeGrid;                                                                      
+    private MazeCell[,] _mazeGrid;
+    private Vector2Int _spawnPosA;
+    private Vector2Int _spawnPosB;
+    private Vector2Int _exitPos;
 
-    private Vector2Int _entryPosA = new Vector2Int(0, 0);
-    private Vector2Int _entryPosB = new Vector2Int(0, 0);
-    private Vector2Int _spawnPosA = new Vector2Int(0, 0);
-    private Vector2Int _spawnPosB = new Vector2Int(0, 0);
+    private void Start()
+    {
+        if(!GameOptions.SelectionReady)
+        {
+            MazeSetupDialog.Show(Generate,()=>UnityEngine.SceneManagement.SceneManager.LoadScene("MENU"));
+            return;
+        }
+        Generate();
+    }
 
-    private Vector2Int _exitPos = new Vector2Int(0, 0);
+    private void Generate()
+    {
+        _mazeWidth=_mazeDepth=GameOptions.MazeSize;
+        if (!CanGenerate()) return;
 
-    // Start: validaciones iniciales, instancia de celdas y generación completa.
-    void Start()
+        CreateGrid();
+        GenerateMaze(null, _mazeGrid[0, 0]);
+        DefineEntranceAndExit();
+        SpawnPowerups();
+        SetupCharacters();
+    }
+
+    private bool CanGenerate()
     {
         if (_mazeCellPrefab == null)
         {
-            Debug.LogError("MazeGenerator: _mazeCellPrefab no asignado.");
+            Debug.LogError("MazeGenerator: falta asignar el prefab de celda.");
             enabled = false;
-            return;
+            return false;
         }
 
         if (_mazeWidth < 3 || _mazeDepth < 3)
         {
-            Debug.LogError("MazeGenerator: _mazeWidth y _mazeDepth deben ser al menos 3.");
+            Debug.LogError("MazeGenerator: el laberinto debe medir al menos 3x3.");
             enabled = false;
-            return;
+            return false;
         }
 
+        return true;
+    }
+
+    private void CreateGrid()
+    {
         _mazeGrid = new MazeCell[_mazeWidth, _mazeDepth];
-
         for (int x = 0; x < _mazeWidth; x++)
-        {
             for (int z = 0; z < _mazeDepth; z++)
-            {
-                _mazeGrid[x, z] = Instantiate(_mazeCellPrefab, new Vector3(x, 0, z), Quaternion.identity);
-            }
-        }
-
-        GenerateMaze(null, _mazeGrid[0, 0]);
-
-        DefineEntranceAndExit();
-
-        SpawnPowerups();
-
-        SetupCharacters();
+                _mazeGrid[x, z] = Instantiate(_mazeCellPrefab, new Vector3(x, 0f, z), Quaternion.identity);
     }
 
-    // GenerateMaze: genera recursivamente el laberinto marcando visitas y quitando muros.
-    private void GenerateMaze(MazeCell previousCell, MazeCell currentCell)
+    private void GenerateMaze(MazeCell previous, MazeCell current)
     {
-        currentCell.Visit();
-        ClearWalls(previousCell, currentCell);
+        current.Visit();
+        ClearWallsBetween(previous, current);
 
-        MazeCell nextCell;
-        do
-        {
-            nextCell = GetNextUnvisitedCell(currentCell);
-            if (nextCell != null) GenerateMaze(currentCell, nextCell);
-        } while (nextCell != null);
+        foreach (var next in UnvisitedNeighbors(current).OrderBy(_ => Random.value).ToList())
+            if (!next.IsVisited) GenerateMaze(current, next);
     }
 
-    // Obtiene una celda adyacente no visitada aleatoria.
-    private MazeCell GetNextUnvisitedCell(MazeCell currentCell)
+    private IEnumerable<MazeCell> UnvisitedNeighbors(MazeCell cell)
     {
-        var unvisitedCells = GetUnvisitedCells(currentCell);
-        return unvisitedCells.OrderBy(_ => Random.Range(1, 10)).FirstOrDefault();
+        Vector2Int pos = CellPosition(cell);
+        foreach (Vector2Int dir in Directions())
+        {
+            Vector2Int next = pos + dir;
+            if (IsInside(next) && !_mazeGrid[next.x, next.y].IsVisited)
+                yield return _mazeGrid[next.x, next.y];
+        }
     }
 
-    // Itera celdas adyacentes no visitadas.
-    private IEnumerable<MazeCell> GetUnvisitedCells(MazeCell currentCell)
+    private void ClearWallsBetween(MazeCell previous, MazeCell current)
     {
-        int x = (int)currentCell.transform.position.x;
-        int z = (int)currentCell.transform.position.z;
+        if (previous == null) return;
 
-        if (x + 1 < _mazeWidth)
-        {
-            var cellToRight = _mazeGrid[x + 1, z];
-            if (!cellToRight.IsVisited) yield return cellToRight;
-        }
-        if (x - 1 >= 0)
-        {
-            var cellToLeft = _mazeGrid[x - 1, z];
-            if (!cellToLeft.IsVisited) yield return cellToLeft;
-        }
-        if (z + 1 < _mazeDepth)
-        {
-            var cellToFront = _mazeGrid[x, z + 1];
-            if (!cellToFront.IsVisited) yield return cellToFront;
-        }
-        if (z - 1 >= 0)
-        {
-            var cellToBack = _mazeGrid[x, z - 1];
-            if (!cellToBack.IsVisited) yield return cellToBack;
-        }
+        Vector2Int delta = CellPosition(current) - CellPosition(previous);
+        ClearWall(previous, delta);
+        ClearWall(current, -delta);
     }
 
-    // ClearWalls: quita muros entre previousCell y currentCell según su posición relativa.
-    private void ClearWalls(MazeCell previousCell, MazeCell currentCell)
-    {
-        if (previousCell == null) return;
-
-        if (previousCell.transform.position.x < currentCell.transform.position.x)
-        {
-            previousCell.ClearRightWall();
-            currentCell.ClearLeftWall();
-            return;
-        }
-        if (previousCell.transform.position.x > currentCell.transform.position.x)
-        {
-            previousCell.ClearLeftWall();
-            currentCell.ClearRightWall();
-            return;
-        }
-        if (previousCell.transform.position.z < currentCell.transform.position.z)
-        {
-            previousCell.ClearFrontWall();
-            currentCell.ClearBackWall();
-            return;
-        }
-        if (previousCell.transform.position.z > currentCell.transform.position.z)
-        {
-            previousCell.ClearBackWall();
-            currentCell.ClearFrontWall();
-            return;
-        }
-    }
-
-    // DefineEntranceAndExit: determina entradas/spawns en esquinas y crea ExitZone en la celda salida.
     private void DefineEntranceAndExit()
     {
-        int axisChoice = Random.Range(0, 2);
+        bool horizontalExit = Random.Range(0, 2) == 0;
+        bool farSide = Random.Range(0, 2) == 1;
 
-        if (axisChoice == 0)
+        if (horizontalExit)
         {
-            int entrySide = Random.Range(0, 2);
-            if (entrySide == 0)
-            {
-                _entryPosA = new Vector2Int(0, 0);
-                _entryPosB = new Vector2Int(0, _mazeDepth - 1);
-                _spawnPosA = _entryPosA;
-                _spawnPosB = _entryPosB;
-                int exitZ = Random.Range(0, _mazeDepth);
-                _exitPos = new Vector2Int(_mazeWidth - 1, exitZ);
-                _mazeGrid[_exitPos.x, _exitPos.y].ClearRightWall();
-            }
-            else
-            {
-                _entryPosA = new Vector2Int(_mazeWidth - 1, 0);
-                _entryPosB = new Vector2Int(_mazeWidth - 1, _mazeDepth - 1);
-                _spawnPosA = _entryPosA;
-                _spawnPosB = _entryPosB;
-                int exitZ = Random.Range(0, _mazeDepth);
-                _exitPos = new Vector2Int(0, exitZ);
-                _mazeGrid[_exitPos.x, _exitPos.y].ClearLeftWall();
-            }
+            int entryX = farSide ? _mazeWidth - 1 : 0;
+            int exitX = farSide ? 0 : _mazeWidth - 1;
+            _spawnPosA = new Vector2Int(entryX, 0);
+            _spawnPosB = new Vector2Int(entryX, _mazeDepth - 1);
+            _exitPos = new Vector2Int(exitX, Random.Range(0, _mazeDepth));
+            ClearWall(_mazeGrid[_exitPos.x, _exitPos.y], farSide ? Vector2Int.left : Vector2Int.right);
         }
         else
         {
-            int entrySide = Random.Range(0, 2);
-            if (entrySide == 0)
-            {
-                _entryPosA = new Vector2Int(0, 0);
-                _entryPosB = new Vector2Int(_mazeWidth - 1, 0);
-                _spawnPosA = _entryPosA;
-                _spawnPosB = _entryPosB;
-                int exitX = Random.Range(0, _mazeWidth);
-                _exitPos = new Vector2Int(exitX, _mazeDepth - 1);
-                _mazeGrid[_exitPos.x, _exitPos.y].ClearFrontWall();
-            }
-            else
-            {
-                _entryPosA = new Vector2Int(0, _mazeDepth - 1);
-                _entryPosB = new Vector2Int(_mazeWidth - 1, _mazeDepth - 1);
-                _spawnPosA = _entryPosA;
-                _spawnPosB = _entryPosB;
-                int exitX = Random.Range(0, _mazeWidth);
-                _exitPos = new Vector2Int(exitX, 0);
-                _mazeGrid[_exitPos.x, _exitPos.y].ClearBackWall();
-            }
+            int entryZ = farSide ? _mazeDepth - 1 : 0;
+            int exitZ = farSide ? 0 : _mazeDepth - 1;
+            _spawnPosA = new Vector2Int(0, entryZ);
+            _spawnPosB = new Vector2Int(_mazeWidth - 1, entryZ);
+            _exitPos = new Vector2Int(Random.Range(0, _mazeWidth), exitZ);
+            ClearWall(_mazeGrid[_exitPos.x, _exitPos.y], farSide ? Vector2Int.down : Vector2Int.up);
         }
 
-        Debug.Log($"Entradas (exteriores): A={_entryPosA} B={_entryPosB}  Spawns: A={_spawnPosA} B={_spawnPosB}  Salida: {_exitPos}");
-
-        var exitCell = _mazeGrid[_exitPos.x, _exitPos.y];
-        if (exitCell != null)
-        {
-            var exitGO = new GameObject("ExitZone");
-            exitGO.transform.SetParent(exitCell.transform, false);
-            exitGO.transform.localPosition = new Vector3(0f, 0.5f, 0f);
-            var box = exitGO.AddComponent<BoxCollider>();
-            box.isTrigger = true;
-            box.size = new Vector3(0.9f, 1f, 0.9f);
-            exitGO.AddComponent<ExitZone>();
-            try { exitGO.tag = "Exit"; } catch (UnityException) { }
-        }
+        CreateExitZone(_mazeGrid[_exitPos.x, _exitPos.y]);
     }
 
-    // SetupCharacters: instancia prefabs de Character, asigna modelos, cámaras y manager.
     private void SetupCharacters()
     {
         if (_characterPrefab == null)
         {
-            Debug.LogWarning("Character prefab no asignado en MazeGenerator.");
+            Debug.LogWarning("MazeGenerator: falta asignar el prefab del personaje.");
             return;
         }
 
-        Vector2Int posA = _spawnPosA;
-        Vector2Int posB = _spawnPosB;
+        Character playerA = CreateCharacter(_spawnPosA, "Jugador A", _player1ModelPrefab);
+        Character playerB = CreateCharacter(_spawnPosB, "Jugador B", _player2ModelPrefab);
+        if (playerA == null || playerB == null) return;
 
-        var goA = Instantiate(_characterPrefab, new Vector3(posA.x, 0.5f, posA.y), Quaternion.identity);
-        var goB = Instantiate(_characterPrefab, new Vector3(posB.x, 0.5f, posB.y), Quaternion.identity);
+        if (_cameraP1Controller != null) _cameraP1Controller.objetivo = playerA.transform;
+        if (_cameraP2Controller != null) _cameraP2Controller.objetivo = playerB.transform;
 
-        var charA = goA.GetComponent<Character>();
-        var charB = goB.GetComponent<Character>();
+        Camera camA = CameraFrom(_cameraP1Controller);
+        Camera camB = CameraFrom(_cameraP2Controller);
+        PickFallbackCameras(ref camA, ref camB);
+        ConfigurePlayerCameras(camA, camB);
 
-        if (charA == null || charB == null)
-        {
-            Debug.LogError("Prefabs deben tener el componente Character.");
-            return;
-        }
-
-        if (_player1ModelPrefab != null)
-        {
-            var modelA = Instantiate(_player1ModelPrefab, goA.transform, false);
-            charA.AttachVisual(modelA);
-        }
-        if (_player2ModelPrefab != null)
-        {
-            var modelB = Instantiate(_player2ModelPrefab, goB.transform, false);
-            charB.AttachVisual(modelB);
-        }
-
-        charA.Init(_mazeGrid, posA, "Jugador A");
-        charB.Init(_mazeGrid, posB, "Jugador B");
-
-        if (_cameraP1Controller != null) _cameraP1Controller.objetivo = goA.transform;
-        if (_cameraP2Controller != null) _cameraP2Controller.objetivo = goB.transform;
-
-        Camera camA = null;
-        Camera camB = null;
-        if (_cameraP1Controller != null)
-        {
-            camA = _cameraP1Controller.GetComponent<Camera>() ?? _cameraP1Controller.GetComponentInChildren<Camera>();
-        }
-        if (_cameraP2Controller != null)
-        {
-            camB = _cameraP2Controller.GetComponent<Camera>() ?? _cameraP2Controller.GetComponentInChildren<Camera>();
-        }
-
-        var cams = Camera.allCameras;
-        if (camA == null || camB == null)
-        {
-            if (cams.Length >= 2)
-            {
-                if (camA == null) camA = cams[0];
-                if (camB == null) camB = cams[1];
-            }
-            else if (cams.Length == 1)
-            {
-                if (camA == null) camA = cams[0];
-                if (camB == null) camB = cams[0];
-            }
-            else
-            {
-                camA = Camera.main;
-                camB = Camera.main;
-            }
-        }
-
-        Debug.Log($"Selected cameras: camA={(camA!=null?camA.name:"null")} camB={(camB!=null?camB.name:"null")}");
-        if (camA == camB) Debug.LogWarning("camA and camB are the same Camera. Assign two different cameras for split-screen.");
-
-        // --- CONFIGURACIÓN SEGURA DE CÁMARAS PARA SPLIT-SCREEN ---
-        // Si tenemos dos cámaras distintas, forzamos rects left/right.
-        if (camA != null && camB != null && camA != camB)
-        {
-            camA.enabled = true;
-            camB.enabled = true;
-
-            camA.rect = new Rect(0f, 0f, 0.5f, 1f);
-            camB.rect = new Rect(0.5f, 0f, 0.5f, 1f);
-
-            camA.clearFlags = CameraClearFlags.Skybox;
-            camB.clearFlags = CameraClearFlags.Skybox;
-
-            camA.backgroundColor = new Color(0.6f, 0.65f, 0.7f);
-            camB.backgroundColor = new Color(0.6f, 0.65f, 0.7f);
-
-            camA.cullingMask = ~0; // all layers
-            camB.cullingMask = ~0;
-
-            // Depths: keep same depth, canvases will render with their own sorting orders.
-            camA.depth = 0;
-            camB.depth = 0;
-        }
-        else if (camA != null) // single camera fallback
-        {
-            camA.enabled = true;
-            camA.rect = new Rect(0f, 0f, 1f, 1f);
-            camA.clearFlags = CameraClearFlags.Skybox;
-            camA.backgroundColor = new Color(0.6f, 0.65f, 0.7f);
-            camA.cullingMask = ~0;
-            camA.depth = 0;
-        }
-
-        // Obtener o crear el TurnBasedManager y usarlo para crear UIs y controlar turnos
-        var manager = gameObject.GetComponent<TurnBasedManager>();
+        var manager = GetComponent<TurnBasedManager>();
         if (manager == null) manager = gameObject.AddComponent<TurnBasedManager>();
-
-        // Pasar las cámaras explícitamente para que el manager cree los canvases ligados a cada cámara
-        manager.Initialize(charA, charB, camA, camB);
-
-        // Asignar referencia al manager en los personajes
-        charA.manager = manager;
-        charB.manager = manager;
-
-        Debug.Log($"Personajes configurados: {charA.name} en {posA} , {charB.name} en {posB}");
+        manager.Initialize(playerA, playerB, camA, camB);
     }
 
-    // SpawnPowerups: calcula posiciones válidas y spawnea powerups Phase y TrueRadar.
+    private Character CreateCharacter(Vector2Int cell, string playerName, GameObject modelPrefab)
+    {
+        var go = Instantiate(_characterPrefab, new Vector3(cell.x, 0.5f, cell.y), Quaternion.identity);
+        var character = go.GetComponent<Character>();
+        if (character == null)
+        {
+            Debug.LogError("El prefab del jugador debe tener componente Character.");
+            return null;
+        }
+
+        if (modelPrefab != null)
+            character.AttachVisual(Instantiate(modelPrefab, go.transform, false));
+
+        character.Init(_mazeGrid, cell, playerName);
+        return character;
+    }
+
     private void SpawnPowerups()
     {
-        int countEach = _mazeWidth / 4;
+        int amount = _mazeWidth / 4;
+        var blocked = new HashSet<Vector2Int> { _spawnPosA, _spawnPosB, _exitPos };
+        var cells = AllCells().Where(cell => !blocked.Contains(cell)).OrderBy(_ => Random.value).ToList();
 
-        var forbidden = new HashSet<Vector2Int>();
-        forbidden.Add(_spawnPosA);
-        forbidden.Add(_spawnPosB);
-        forbidden.Add(_exitPos);
-
-        var candidates = new List<Vector2Int>();
-        for (int x = 0; x < _mazeWidth; x++)
-        {
-            for (int z = 0; z < _mazeDepth; z++)
-            {
-                var pos = new Vector2Int(x, z);
-                if (forbidden.Contains(pos)) continue;
-                candidates.Add(pos);
-            }
-        }
-
-        for (int i = 0; i < candidates.Count; i++)
-        {
-            int j = Random.Range(i, candidates.Count);
-            var tmp = candidates[i];
-            candidates[i] = candidates[j];
-            candidates[j] = tmp;
-        }
-
-        int idx = 0;
-        for (int k = 0; k < countEach && idx < candidates.Count; k++, idx++)
-        {
-            var pos = candidates[idx];
-            SpawnPowerupAt(pos, Powerup.PowerupType.Phase);
-        }
-        for (int k = 0; k < countEach && idx < candidates.Count; k++, idx++)
-        {
-            var pos = candidates[idx];
-            SpawnPowerupAt(pos, Powerup.PowerupType.TrueRadar);
-        }
-
-        Debug.Log($"Spawned {countEach} Phase and {countEach} TrueRadar powerups (mazeWidth={_mazeWidth}, mazeDepth={_mazeDepth}).");
+        int index = 0;
+        for (int i = 0; i < amount && index < cells.Count; i++, index++)
+            SpawnPowerupAt(cells[index], Powerup.PowerupType.Phase);
+        for (int i = 0; i < amount && index < cells.Count; i++, index++)
+            SpawnPowerupAt(cells[index], Powerup.PowerupType.TrueRadar);
     }
 
-    // SpawnPowerupAt: crea un powerup en la celda indicada.
     private void SpawnPowerupAt(Vector2Int cellPos, Powerup.PowerupType type)
     {
-        var cell = _mazeGrid[cellPos.x, cellPos.y];
-        if (cell == null) return;
+        GameObject prefab = type == Powerup.PowerupType.Phase ? _powerupPhasePrefab : _powerupTrueRadarPrefab;
+        GameObject go = prefab != null
+            ? Instantiate(prefab, new Vector3(cellPos.x, 0.5f, cellPos.y), Quaternion.identity)
+            : GameObject.CreatePrimitive(type == Powerup.PowerupType.Phase ? PrimitiveType.Cube : PrimitiveType.Sphere);
 
-        GameObject prefab = null;
-        if (type == Powerup.PowerupType.Phase) prefab = _powerupPhasePrefab;
-        else prefab = _powerupTrueRadarPrefab;
-
-        GameObject go;
-        float spawnY = 0.5f;
-        if (prefab != null)
+        if (prefab == null)
         {
-            go = Instantiate(prefab, new Vector3(cellPos.x, spawnY, cellPos.y), Quaternion.identity);
+            go.transform.position = new Vector3(cellPos.x, 0.5f, cellPos.y);
+            go.transform.localScale = new Vector3(0.35f, 0.35f, 0.35f);
+            if(type==Powerup.PowerupType.Phase)go.transform.rotation=Quaternion.Euler(0,45,30);
+        }
+
+        var powerup = go.GetComponent<Powerup>();
+        if (powerup == null) powerup = go.AddComponent<Powerup>();
+        powerup.Type = type;
+
+        var renderer = go.GetComponent<MeshRenderer>();
+        if (renderer != null) SetMarkerColor(renderer,type == Powerup.PowerupType.Phase ? Color.cyan : Color.magenta);
+
+        go.transform.SetParent(_mazeGrid[cellPos.x, cellPos.y].transform, true);
+        var collider = go.GetComponent<Collider>();
+        if (collider == null) collider = go.AddComponent<BoxCollider>();
+        collider.isTrigger = true;
+        WorldLabel.Create(go.transform,type==Powerup.PowerupType.Phase?"PHASE":"RADAR",new Vector3(0,.45f,0),type==Powerup.PowerupType.Phase?Color.cyan:Color.magenta);
+    }
+
+    private void CreateExitZone(MazeCell cell)
+    {
+        var exit = new GameObject("ExitZone");
+        exit.transform.SetParent(cell.transform, false);
+        exit.transform.localPosition = new Vector3(0f, 0.5f, 0f);
+
+        var box = exit.AddComponent<BoxCollider>();
+        box.isTrigger = true;
+        box.size = new Vector3(0.9f, 1f, 0.9f);
+        exit.AddComponent<ExitZone>();
+        var marker=GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        marker.name="ExitMarker";marker.transform.SetParent(exit.transform,false);
+        marker.transform.localPosition=new Vector3(0,-.47f,0);marker.transform.localScale=new Vector3(.78f,.015f,.78f);
+        SetMarkerColor(marker.GetComponent<Renderer>(),new Color(.15f,.80f,.35f));
+        Destroy(marker.GetComponent<Collider>());
+        WorldLabel.Create(exit.transform,"SALIDA",new Vector3(0,.5f,0),new Color(.4f,1,.5f));
+    }
+
+    private void PickFallbackCameras(ref Camera camA, ref Camera camB)
+    {
+        Camera[] cameras = Camera.allCameras;
+        if (camA == null && cameras.Length > 0) camA = cameras[0];
+        if (camB == null && cameras.Length > 1) camB = cameras[1];
+        if (camB == null) camB = camA;
+    }
+
+    private void SetMarkerColor(Renderer renderer,Color color)
+    {
+        // Primitive defaults use the built-in pipeline's Standard material, which
+        // renders pink under URP. Use the same pipeline as the maze instead.
+        var shader=Shader.Find("Universal Render Pipeline/Lit");
+        if(shader!=null)renderer.sharedMaterial=new Material(shader);
+        renderer.material.color=color;
+    }
+
+    private void ConfigurePlayerCameras(Camera camA, Camera camB)
+    {
+        if (camA == null) return;
+
+        if (camB != null && camA != camB)
+        {
+            ConfigureCamera(camA, new Rect(0f, 0f, 1f, 1f));
+            ConfigureCamera(camB, new Rect(0f, 0f, 1f, 1f));
+            camB.enabled=false;
         }
         else
         {
-            go = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            go.transform.position = new Vector3(cellPos.x, spawnY, cellPos.y);
-            go.transform.localScale = new Vector3(0.6f, 0.2f, 0.6f);
+            ConfigureCamera(camA, new Rect(0f, 0f, 1f, 1f));
         }
+    }
 
-        var p = go.GetComponent<Powerup>();
-        if (p == null) p = go.AddComponent<Powerup>();
-        p.Type = (type == Powerup.PowerupType.Phase) ? Powerup.PowerupType.Phase : Powerup.PowerupType.TrueRadar;
+    private void ConfigureCamera(Camera camera, Rect rect)
+    {
+        camera.enabled = true;
+        camera.rect = rect;
+        camera.clearFlags = CameraClearFlags.Skybox;
+        camera.backgroundColor = new Color(0.6f, 0.65f, 0.7f);
+        camera.cullingMask = ~0;
+        camera.depth = 0;
+    }
 
-        var mr = go.GetComponent<MeshRenderer>();
-        if (mr != null)
-        {
-            if (type == Powerup.PowerupType.Phase) mr.material.color = Color.cyan;
-            else mr.material.color = Color.magenta;
-        }
+    private Camera CameraFrom(CamaraTerceraPersona controller)
+    {
+        if (controller == null) return null;
+        return controller.GetComponent<Camera>() ?? controller.GetComponentInChildren<Camera>();
+    }
 
-        go.transform.SetParent(cell.transform, true);
+    private IEnumerable<Vector2Int> AllCells()
+    {
+        for (int x = 0; x < _mazeWidth; x++)
+            for (int z = 0; z < _mazeDepth; z++)
+                yield return new Vector2Int(x, z);
+    }
 
-        var col = go.GetComponent<Collider>();
-        if (col == null) { var bc = go.AddComponent<BoxCollider>(); bc.isTrigger = true; }
-        else col.isTrigger = true;
+    private bool IsInside(Vector2Int pos) => pos.x >= 0 && pos.x < _mazeWidth && pos.y >= 0 && pos.y < _mazeDepth;
+    private Vector2Int CellPosition(MazeCell cell) => new Vector2Int((int)cell.transform.position.x, (int)cell.transform.position.z);
+
+    private IEnumerable<Vector2Int> Directions()
+    {
+        yield return Vector2Int.right;
+        yield return Vector2Int.left;
+        yield return Vector2Int.up;
+        yield return Vector2Int.down;
+    }
+
+    private void ClearWall(MazeCell cell, Vector2Int dir)
+    {
+        if (dir == Vector2Int.right) cell.ClearRightWall();
+        else if (dir == Vector2Int.left) cell.ClearLeftWall();
+        else if (dir == Vector2Int.up) cell.ClearFrontWall();
+        else if (dir == Vector2Int.down) cell.ClearBackWall();
     }
 }

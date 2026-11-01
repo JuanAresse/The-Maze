@@ -1,499 +1,246 @@
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-
-/*
-GameObject: Character 
-Descripción: Representa a un personaje en la rejilla del laberinto. Gestiona posición de celda,
-movimiento lógico, facing, visual attachment y powerups del personaje.
-*/
 
 public class Character : MonoBehaviour
 {
     public enum Facing { North, South, East, West }
 
-    private MazeCell[,] _grid;
-    private int _width;
-    private int _depth;
-    private Vector2Int _pos;
-    private string _name;
-
     public TurnBasedManager manager;
     public PlayerHealth health;
 
     [SerializeField] private float fixedHeight = 0.5f;
-
-    private Rigidbody _rb;
-    private Collider _collider;
-        
-    public Facing CurrentFacing { get; private set; } = Facing.North;
-
-    private Transform _visual;
     [SerializeField] private float visualRotateSpeed = 10f;
-    private Quaternion _targetVisualLocalRot = Quaternion.identity;
-
     [SerializeField] private Vector3 _visualLocalOffset = new Vector3(0f, 0.5f, 0f);
 
     public Vector2Int CellPosition => _pos;
+    public Facing CurrentFacing { get; private set; } = Facing.North;
 
-    public bool queuedPhase = false;
-    public bool queuedTrueRadar = false;
-    public bool activePhase = false;
-    public bool activeTrueRadar = false;
+    public bool queuedPhase;
+    public bool queuedTrueRadar;
+    public bool activePhase;
+    public bool activeTrueRadar;
 
-    // Inicializa el Character con la rejilla, posición inicial y nombre.
-    // Parámetros: grid - matriz de MazeCell, startPos - posición de inicio, playerName - nombre.
+    private MazeCell[,] _grid;
+    private int _width;
+    private int _depth;
+    private Vector2Int _pos;
+    private Rigidbody _rb;
+    private Transform _visual;
+    private Quaternion _targetVisualRotation = Quaternion.identity;
+
     public void Init(MazeCell[,] grid, Vector2Int startPos, string playerName)
     {
         _grid = grid;
         _width = grid.GetLength(0);
         _depth = grid.GetLength(1);
         _pos = startPos;
-        _name = playerName;
+        name = playerName;
+        CurrentFacing = Facing.North;
 
         _rb = GetComponent<Rigidbody>();
-        _collider = GetComponent<Collider>();
-
         if (_rb != null)
         {
             _rb.isKinematic = true;
             _rb.useGravity = false;
         }
 
-        if (_collider != null)
-        {
-            _collider.isTrigger = true;
-        }
+        var col = GetComponent<Collider>();
+        if (col != null) col.isTrigger = true;
 
-        Vector3 startWorld = new Vector3(_pos.x, fixedHeight, _pos.y);
-        if (_rb != null) _rb.position = startWorld;
-        else transform.position = startWorld;
+        health = GetComponent<PlayerHealth>();
+        if (health == null) health = gameObject.AddComponent<PlayerHealth>();
+        health.CacheRenderers();
 
-        CurrentFacing = Facing.North;
-
-        if (health == null)
-        {
-            health = GetComponent<PlayerHealth>();
-            if (health == null) health = gameObject.AddComponent<PlayerHealth>();
-        }
+        ApplyPosition();
     }
 
-    // Actualiza la posición física/visual cada frame tardío.
     private void LateUpdate()
     {
-        Vector3 lockedPos = new Vector3(_pos.x, fixedHeight, _pos.y);
-        if (_rb != null) _rb.position = lockedPos;
-        else transform.position = lockedPos;
-
+        ApplyPosition(false);
         if (_visual != null)
-        {
-            _visual.localRotation = Quaternion.Slerp(_visual.localRotation, _targetVisualLocalRot, Time.deltaTime * visualRotateSpeed);
-        }
+            _visual.localRotation = Quaternion.Slerp(_visual.localRotation, _targetVisualRotation, visualRotateSpeed * Time.deltaTime);
     }
 
-    // Ejecuta una lista de acciones (moves) con un delay entre pasos.
-    // Parámetros: moves - lista de Action; stepDelay - retardo entre pasos.
-    public IEnumerator ExecuteMoves(List<System.Action> moves, float stepDelay = 0.25f)
-    {
-        if (_grid == null) yield break;
-
-        foreach (var action in moves)
-        {
-            Vector2Int previous = _pos;
-            Facing previousFacing = CurrentFacing;
-
-            Debug.Log($"[ExecuteMoves] {name} - antes: pos={previous}, facing={previousFacing}, próxima acción={action.Method.Name}");
-
-            action.Invoke();
-
-            Debug.Log($"[ExecuteMoves] {name} - después: pos={_pos}, facing={CurrentFacing}");
-
-            if (manager != null && (previous != _pos || previousFacing != CurrentFacing))
-            {
-                Debug.Log($"[ExecuteMoves] {name} -> reportando cambio anterior pos={previous}, facing={previousFacing} al manager");
-                manager.ReportPositionMoved(this, previous, previousFacing);
-            }
-
-            yield return new WaitForSeconds(stepDelay);
-        }
-    }
-
-    // Adjunta una instancia visual al Character, preservando canvases relevantes.
-    // Parámetros: visualInstance - GameObject del modelo/visual.
     public void AttachVisual(GameObject visualInstance)
     {
         if (visualInstance == null) return;
 
-        GameObject instance = visualInstance;
-        if (visualInstance.scene.rootCount == 0)
-        {
-            instance = Instantiate(visualInstance);
-        }
+        GameObject instance = visualInstance.scene.rootCount == 0 ? Instantiate(visualInstance) : visualInstance;
+        Transform root = transform.Find("VisualRoot") ?? new GameObject("VisualRoot").transform;
+        root.SetParent(transform, false);
+        root.localPosition = _visualLocalOffset;
+        root.localRotation = Quaternion.identity;
+        root.localScale = InverseScale(transform.localScale);
 
-        Transform visualRoot = transform.Find("VisualRoot");
-        if (visualRoot == null)
-        {
-            var vr = new GameObject("VisualRoot");
-            vr.transform.SetParent(transform, false);
-            vr.transform.localPosition = _visualLocalOffset;
-            vr.transform.localRotation = Quaternion.identity;
-            Vector3 parentScale = transform.localScale;
-            vr.transform.localScale = new Vector3(
-                parentScale.x != 0f ? 1f / parentScale.x : 1f,
-                parentScale.y != 0f ? 1f / parentScale.y : 1f,
-                parentScale.z != 0f ? 1f / parentScale.z : 1f
-            );
-            visualRoot = vr.transform;
-        }
-        else
-        {
-            visualRoot.localPosition = _visualLocalOffset;
-            Vector3 parentScale = transform.localScale;
-            visualRoot.localScale = new Vector3(
-                parentScale.x != 0f ? 1f / parentScale.x : 1f,
-                parentScale.y != 0f ? 1f / parentScale.y : 1f,
-                parentScale.z != 0f ? 1f / parentScale.z : 1f
-            );
-        }
-
-        instance.transform.SetParent(visualRoot, false);
+        instance.transform.SetParent(root, false);
         instance.transform.localPosition = Vector3.zero;
         instance.transform.localRotation = Quaternion.identity;
         instance.transform.localScale = Vector3.one;
 
         _visual = instance.transform;
-        _targetVisualLocalRot = _visual.localRotation;
+        _targetVisualRotation = _visual.localRotation;
 
-        var allRenderers = GetComponentsInChildren<Renderer>(true);
-        var visualRenderers = _visual.GetComponentsInChildren<Renderer>(true);
-        var visualRendererSet = new HashSet<Renderer>(visualRenderers);
-
-        foreach (var r in allRenderers)
-        {
-            if (visualRendererSet.Contains(r)) continue;
-            r.enabled = false;
-        }
-
-        var healthCanvases = new HashSet<UnityEngine.Canvas>();
-        var healthComps = GetComponentsInChildren<PlayerHealth>(true);
-        foreach (var hp in healthComps)
-        {
-            var cs = hp.GetComponentsInChildren<UnityEngine.Canvas>(true);
-            foreach (var c in cs) healthCanvases.Add(c);
-        }
-
-        var allCanvases = GetComponentsInChildren<UnityEngine.Canvas>(true);
-        var visualCanvases = _visual.GetComponentsInChildren<UnityEngine.Canvas>(true);
-        var vcSet = new HashSet<UnityEngine.Canvas>(visualCanvases);
-
-        foreach (var c in allCanvases)
-        {
-            if (vcSet.Contains(c)) continue;
-            if (healthCanvases.Contains(c)) continue;
-            c.enabled = false;
-        }
+        var visualRenderers = new HashSet<Renderer>(_visual.GetComponentsInChildren<Renderer>(true));
+        foreach (var renderer in GetComponentsInChildren<Renderer>(true))
+            if (!visualRenderers.Contains(renderer)) renderer.enabled = false;
     }
 
-    // Teletransporta el personaje a una celda (sin comprobaciones adicionales).
-    // Parámetros: cellPos - posición de celda destino.
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
     public void TeleportTo(Vector2Int cellPos)
     {
         _pos = cellPos;
-        Vector3 world = new Vector3(_pos.x, fixedHeight, _pos.y);
-        if (_rb != null)
-        {
-            _rb.position = world;
-        }
-        else
-        {
-            transform.position = world;
-        }
-
-        CheckForExitAtCurrentCell();
+        ApplyPosition();
     }
+#endif
 
-    // Mueve al personaje en la dirección indicada y actualiza facing.
-    // Parámetros: dir - Vector2Int de dirección (up/down/left/right).
-    public void Move(Vector2Int dir)
+    public bool TryMove(Vector2Int dir, bool usePhase)
     {
-        if (_grid == null) return;
+        if (_grid == null || dir == Vector2Int.zero) return false;
 
-        if (dir == Vector2Int.up) SetFacing(Facing.North, true);
-        else if (dir == Vector2Int.down) SetFacing(Facing.South, true);
-        else if (dir == Vector2Int.right) SetFacing(Facing.East, true);
-        else if (dir == Vector2Int.left) SetFacing(Facing.West, true);
-
-        var currentCell = _grid[_pos.x, _pos.y];
-
-        if (activePhase)
+        SetFacing(DirToFacing(dir));
+        if (!IsInside(_pos + dir))
         {
-            if (dir == Vector2Int.right)
-            {
-                if (currentCell.HasRightWall())
-                {
-                    if (_pos.x + 1 < _width)
-                    {
-                        _pos.x += 1;
-                        ApplyPositionImmediately();
-                        activePhase = false;
-                        Debug.Log($"{name} usó Phase: atravesó muro y se colocó en {_pos} (powerup consumido)");
-                        return;
-                    }
-                    else return;
-                }
-            }
-            else if (dir == Vector2Int.left)
-            {
-                if (currentCell.HasLeftWall())
-                {
-                    if (_pos.x - 1 >= 0)
-                    {
-                        _pos.x -= 1;
-                        ApplyPositionImmediately();
-                        activePhase = false;
-                        Debug.Log($"{name} usó Phase: atravesó muro y se colocó en {_pos} (powerup consumido)");
-                        return;
-                    }
-                    else return;
-                }
-            }
-            else if (dir == Vector2Int.up)
-            {
-                if (currentCell.HasFrontWall())
-                {
-                    if (_pos.y + 1 < _depth)
-                    {
-                        _pos.y += 1;
-                        ApplyPositionImmediately();
-                        activePhase = false;
-                        Debug.Log($"{name} usó Phase: atravesó muro y se colocó en {_pos} (powerup consumido)");
-                        return;
-                    }
-                    else return;
-                }
-            }
-            else if (dir == Vector2Int.down)
-            {
-                if (currentCell.HasBackWall())
-                {
-                    if (_pos.y - 1 >= 0)
-                    {
-                        _pos.y -= 1;
-                        ApplyPositionImmediately();
-                        activePhase = false;
-                        Debug.Log($"{name} usó Phase: atravesó muro y se colocó en {_pos} (powerup consumido)");
-                        return;
-                    }
-                    else return;
-                }
-            }
+            manager?.ShowFeedback("Límite del laberinto: no avanza.");
+            return false;
         }
 
-        if (dir == Vector2Int.right)
+        if (usePhase && activePhase && HasWall(_pos, dir))
         {
-            if (currentCell.HasRightWall()) return;
-            if (_pos.x + 1 >= _width) return;
-            var target = _grid[_pos.x + 1, _pos.y];
-            if (target.HasLeftWall()) return;
-            _pos.x += 1;
-        }
-        else if (dir == Vector2Int.left)
-        {
-            if (currentCell.HasLeftWall()) return;
-            if (_pos.x - 1 < 0) return;
-            var target = _grid[_pos.x - 1, _pos.y];
-            if (target.HasRightWall()) return;
-            _pos.x -= 1;
-        }
-        else if (dir == Vector2Int.up)
-        {
-            if (currentCell.HasFrontWall()) return;
-            if (_pos.y + 1 >= _depth) return;
-            var target = _grid[_pos.x, _pos.y + 1];
-            if (target.HasBackWall()) return;
-            _pos.y += 1;
-        }
-        else if (dir == Vector2Int.down)
-        {
-            if (currentCell.HasBackWall()) return;
-            if (_pos.y - 1 < 0) return;
-            var target = _grid[_pos.x, _pos.y - 1];
-            if (target.HasFrontWall()) return;
-            _pos.y -= 1;
+            _pos += dir;
+            activePhase = false;
+            manager?.ShowFeedback("Phase consumido: atravesaste un muro.");
+            ApplyPosition();
+            return true;
         }
 
-        ApplyPositionImmediately();
+        if (!CanMove(_pos, dir))
+        {
+            manager?.ShowFeedback(usePhase && !activePhase ? "Movimiento bloqueado: no tenés Phase disponible." : "Movimiento bloqueado por una pared.");
+            return false;
+        }
+
+        _pos += dir;
+        manager?.ShowFeedback("Avanzaste una casilla.");
+        ApplyPosition();
+        return true;
     }
 
-    // Aplica la posición física inmediatamente y comprueba salida.
-    private void ApplyPositionImmediately()
+    public void ExecutePlanned(ActionBlock block)
     {
-        Vector3 targetPos = new Vector3(_pos.x, fixedHeight, _pos.y);
-        if (_rb != null)
+        switch (block.Kind)
         {
-            _rb.position = targetPos;
-        }
-        else
-        {
-            transform.position = targetPos;
-        }
-
-        CheckForExitAtCurrentCell();
-    }
-
-    // Comprueba si la celda actual contiene una ExitZone y notifica al manager.
-    private void CheckForExitAtCurrentCell()
-    {
-        if (_grid == null) return;
-        if (_pos.x < 0 || _pos.x >= _width || _pos.y < 0 || _pos.y >= _depth) return;
-
-        var cell = _grid[_pos.x, _pos.y];
-        if (cell == null) return;
-
-        var exit = cell.GetComponentInChildren<ExitZone>(true);
-        if (exit != null)
-        {
-            Debug.Log($"[CheckForExit] {name} detected ExitZone at {_pos} -> notifying manager {(manager != null ? manager.name : "null")}");
-            if (manager != null) manager.PlayerExited(this);
-            else
-            {
-                var fallback = UnityEngine.Object.FindObjectOfType<TurnBasedManager>();
-                if (fallback != null) fallback.PlayerExited(this);
-                else Debug.LogWarning("[CheckForExit] No TurnBasedManager found to notify exit.");
-            }
+            case ActionKind.Up: TryMove(Vector2Int.up, block.UsePhase); break;
+            case ActionKind.Down: TryMove(Vector2Int.down, block.UsePhase); break;
+            case ActionKind.Left: TryMove(Vector2Int.left, block.UsePhase); break;
+            case ActionKind.Right: TryMove(Vector2Int.right, block.UsePhase); break;
+            case ActionKind.Wait: manager?.ShowFeedback("Esperar: permanecés en la misma casilla."); break;
+            case ActionKind.Shoot: manager?.TryShoot(this, block.Adjustments, block.UseTrueRadar); break;
         }
     }
 
-    // Ajusta el facing y, de ser necesario, solicita rotación del visual.
-    private void SetFacing(Facing f, bool rotateVisual)
-    {
-        CurrentFacing = f;
-        if (rotateVisual && _visual != null)
-        {
-            float yaw = 0f;
-            switch (f)
-            {
-                case Facing.North: yaw = 0f; break;
-                case Facing.East: yaw = 90f; break;
-                case Facing.South: yaw = 180f; break;
-                case Facing.West: yaw = -90f; break;
-            }
-            _targetVisualLocalRot = Quaternion.Euler(0f, yaw, 0f);
-        }
-    }
-
-    // Métodos de conveniencia para movimiento.
-    public void MoveUp() => Move(Vector2Int.up);
-    public void MoveDown() => Move(Vector2Int.down);
-    public void MoveLeft() => Move(Vector2Int.left);
-    public void MoveRight() => Move(Vector2Int.right);
-
-    // Aviso: Shoot() sin args no está soportado.
-    public void Shoot()
-    {
-        Debug.LogWarning($"{name}: Shoot() sin argumentos ya no está permitido. Usa Shoot(...Radar...)");
-    }
-
-    // Dispara a una celda objetivo; aplica daño si acierta.
-    // Parámetros: targetCell - celda objetivo donde se disparará.
     public void ShootAt(Vector2Int targetCell)
     {
         if (manager == null) return;
-
-        Character target = (this == manager.PlayerA) ? manager.PlayerB : manager.PlayerA;
-        if (target == null) return;
-
-        if (target.CellPosition == targetCell)
+        if (!manager.RegisterShot(this)) return;
+        Character target = this == manager.PlayerA ? manager.PlayerB : manager.PlayerA;
+        if (target != null && target.CellPosition == targetCell && target.health != null)
         {
-            if (target.health != null)
-            {
-                target.health.TakeDamage(20);
-                Debug.Log($"{name} disparó con radar a {target.name} en {targetCell}, vida restante: {target.health.currentHealth}");
-            }
+            target.health.TakeDamage(20);
+            manager.ShowFeedback("Impacto: -20 de vida al rival.");
         }
-        else
-        {
-            Debug.Log($"{name} disparó a {targetCell} (radar) y falló. Posición real de {target.name}: {target.CellPosition}");
-        }
+        else manager.ShowFeedback("Disparo fallido: el rival no está en esa casilla.");
     }
 
-    // Comprueba si el personaje tiene un tag seguro.
-    private bool HasTagSafe(GameObject go, string tag)
-    {
-        try { return go != null && go.CompareTag(tag); }
-        catch (UnityException) { return false; }
-    }
-
-    // Evento de trigger que notifica salida si corresponde.
-    private void OnTriggerEnter(Collider other)
-    {
-        Debug.Log($"[OnTriggerEnter] {name} collided with '{(other != null ? other.gameObject.name : "null")}' tag='{(other != null && other.gameObject != null ? other.gameObject.tag : "null")}'");
-
-        if (HasTagSafe(other.gameObject, "Exit") || other.GetComponent<ExitZone>() != null || other.GetComponentInParent<ExitZone>() != null)
-        {
-            Debug.Log($"[OnTriggerEnter] {name} detected ExitZone -> notifying manager {(manager != null ? manager.name : "null")}")
-;
-            if (manager != null)
-            {
-                manager.PlayerExited(this);
-            }
-            else
-            {
-                var fallback = UnityEngine.Object.FindObjectOfType<TurnBasedManager>();
-                if (fallback != null)
-                {
-                    Debug.Log("[OnTriggerEnter] Fallback TurnBasedManager found - calling PlayerExited.");
-                    fallback.PlayerExited(this);
-                }
-                else
-                {
-                    Debug.LogWarning("[OnTriggerEnter] No TurnBasedManager found to notify exit.");
-                }
-            }
-        }
-    }
-
-    // Marca la recogida de un powerup (queued para activar en el siguiente turno).
-    // Parámetros: type - tipo del powerup.
     public void CollectPowerup(Powerup.PowerupType type)
     {
-        if (type == Powerup.PowerupType.Phase)
-        {
-            queuedPhase = true;
-            Debug.Log($"{name} recogió Powerup Phase (disponible next turn).");
-        }
-        else if (type == Powerup.PowerupType.TrueRadar)
-        {
-            queuedTrueRadar = true;
-            Debug.Log($"{name} recogió Powerup TrueRadar (disponible next turn).");
-        }
+        if (type == Powerup.PowerupType.Phase) queuedPhase = true;
+        if (type == Powerup.PowerupType.TrueRadar) queuedTrueRadar = true;
     }
 
-    // Promueve powerups queued a active al inicio del turno.
     public void PromoteQueuedPowerups()
     {
-        if (queuedPhase)
+        activePhase |= queuedPhase;
+        activeTrueRadar |= queuedTrueRadar;
+        queuedPhase = false;
+        queuedTrueRadar = false;
+    }
+
+    public void ClearActivePowerups()
+    {
+        activePhase = false;
+        activeTrueRadar = false;
+    }
+
+    private void ApplyPosition(bool checkExit = true)
+    {
+        Vector3 world = new Vector3(_pos.x, fixedHeight, _pos.y);
+        if (_rb != null) _rb.position = world;
+        else transform.position = world;
+
+        if (checkExit)
         {
-            activePhase = true;
-            queuedPhase = false;
-            Debug.Log($"{name}: Phase activado para este turno.");
-        }
-        if (queuedTrueRadar)
-        {
-            activeTrueRadar = true;
-            queuedTrueRadar = false;
-            Debug.Log($"{name}: TrueRadar activado para este turno.");
+            if (IsInside(_pos))
+            {
+                var powerup = _grid[_pos.x, _pos.y].GetComponentInChildren<Powerup>();
+                if (powerup != null) powerup.Collect(this);
+            }
+            CheckExit();
         }
     }
 
-    // Limpia powerups activos al final del turno.
-    public void ClearActivePowerups()
+    private bool CanMove(Vector2Int from, Vector2Int dir)
     {
-        if (activePhase || activeTrueRadar)
-        {
-            activePhase = false;
-            activeTrueRadar = false;
-            Debug.Log($"{name}: powerups activos limpiados al final del turno.");
-        }
+        Vector2Int to = from + dir;
+        if (!IsInside(to) || HasWall(from, dir)) return false;
+        return !HasWall(to, -dir);
+    }
+
+    private bool HasWall(Vector2Int cellPos, Vector2Int dir)
+    {
+        MazeCell cell = _grid[cellPos.x, cellPos.y];
+        if (dir == Vector2Int.right) return cell.HasRightWall();
+        if (dir == Vector2Int.left) return cell.HasLeftWall();
+        if (dir == Vector2Int.up) return cell.HasFrontWall();
+        if (dir == Vector2Int.down) return cell.HasBackWall();
+        return true;
+    }
+
+    private bool IsInside(Vector2Int cell)
+    {
+        return cell.x >= 0 && cell.x < _width && cell.y >= 0 && cell.y < _depth;
+    }
+
+    private void CheckExit()
+    {
+        if (!IsInside(_pos)) return;
+        if (manager != null && _grid[_pos.x, _pos.y].GetComponentInChildren<ExitZone>(true) != null)
+            manager.PlayerExited(this);
+    }
+
+    private void SetFacing(Facing facing)
+    {
+        CurrentFacing = facing;
+        float yaw = 0f;
+        if (facing == Facing.East) yaw = 90f;
+        if (facing == Facing.South) yaw = 180f;
+        if (facing == Facing.West) yaw = -90f;
+        _targetVisualRotation = Quaternion.Euler(0f, yaw, 0f);
+    }
+
+    private Facing DirToFacing(Vector2Int dir)
+    {
+        if (dir == Vector2Int.up) return Facing.North;
+        if (dir == Vector2Int.down) return Facing.South;
+        if (dir == Vector2Int.right) return Facing.East;
+        return Facing.West;
+    }
+
+    private Vector3 InverseScale(Vector3 scale)
+    {
+        return new Vector3(
+            scale.x != 0f ? 1f / scale.x : 1f,
+            scale.y != 0f ? 1f / scale.y : 1f,
+            scale.z != 0f ? 1f / scale.z : 1f
+        );
     }
 }

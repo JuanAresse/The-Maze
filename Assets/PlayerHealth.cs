@@ -1,155 +1,43 @@
 using UnityEngine;
 using UnityEngine.UI;
 
-/*
-GameObject: PlayerHealth 
-Descripción: Gestiona la barra de vida en espacio mundial, el daño y notifica muerte al manager.
-*/
-
-[RequireComponent(typeof(Transform))]
 public class PlayerHealth : MonoBehaviour
 {
     public int maxHealth = 100;
     public int currentHealth;
-    public Vector3 offset = new Vector3(0f, 2f, 0f);
-
-    public float barWorldWidth = 0.6f;
-    public float barWorldHeight = 0.08f;
-    public Color barColor = Color.green;
-    public Color backgroundColor = Color.red;
-    public Color borderColor = Color.black;
-    public float borderThickness = 0.01f;
-
-    private RectTransform _canvasRect;
-    private RectTransform _foregroundRect;
-    private GameObject _canvasGO;
-
-    // Awake: inicializa valores de vida y crea el canvas en mundo.
-    void Awake()
+    public float barWorldWidth = .6f;
+    private GameObject _canvas;
+    private RectTransform _foreground;
+    private Renderer[] _renderers;
+    private void Awake()
     {
-        currentHealth = maxHealth;
-        CreateWorldCanvas();
-        UpdateBarImmediate();
+        currentHealth=maxHealth;
+        _canvas=new GameObject("Health_"+name,typeof(RectTransform),typeof(Canvas));
+        _canvas.GetComponent<Canvas>().renderMode=RenderMode.WorldSpace;
+        var rect=_canvas.GetComponent<RectTransform>();rect.sizeDelta=new Vector2(100,12);rect.localScale=Vector3.one*(barWorldWidth/100f);
+        var background=MazeUI.Box("Background",rect,Vector2.zero,Vector2.one,new Color(.45f,.08f,.08f));
+        _foreground=MazeUI.Box("Health",background,Vector2.zero,Vector2.one,new Color(.15f,.9f,.25f));
+        _canvas.GetComponentsInChildren<Image>()[0].raycastTarget=false;_foreground.GetComponent<Image>().raycastTarget=false;
+        CacheRenderers();
+        UpdateBar();
     }
-
-    // TakeDamage: aplica daño y actualiza barra; comprueba muerte.
-    // Parámetros: amount - cantidad de daño a aplicar.
-    public void TakeDamage(int amount)
+    public void TakeDamage(int amount)=>SetHealth(currentHealth-amount);
+    private void SetHealth(int value)
     {
-        currentHealth -= amount;
-        currentHealth = Mathf.Clamp(currentHealth, 0, maxHealth);
-        UpdateBarImmediate();
-        CheckForDeath();
+        currentHealth=Mathf.Clamp(value,0,maxHealth);UpdateBar();
+        if(currentHealth<=0){var character=GetComponent<Character>();character?.manager?.PlayerLost(character);}
     }
-
-    // CreateWorldCanvas: construye una pequeña UI en world space como hijo del jugador.
-    private void CreateWorldCanvas()
+    private void UpdateBar()
+    {if(_foreground!=null){_foreground.anchorMax=new Vector2(maxHealth>0?(float)currentHealth/maxHealth:0,1);_foreground.offsetMin=Vector2.zero;_foreground.offsetMax=Vector2.zero;}}
+    private void LateUpdate()
     {
-        _canvasGO = new GameObject("HealthCanvas", typeof(RectTransform));
-        _canvasGO.transform.SetParent(transform, false);
-
-        Vector3 parentScale = transform.lossyScale;
-        Vector3 invScale = new Vector3(
-            parentScale.x != 0f ? 1f / parentScale.x : 1f,
-            parentScale.y != 0f ? 1f / parentScale.y : 1f,
-            parentScale.z != 0f ? 1f / parentScale.z : 1f
-        );
-
-        _canvasGO.transform.localPosition = new Vector3(offset.x * invScale.x, offset.y * invScale.y, offset.z * invScale.z);
-        _canvasGO.transform.localRotation = Quaternion.identity;
-
-        var canvas = _canvasGO.AddComponent<Canvas>();
-        canvas.renderMode = RenderMode.WorldSpace;
-        canvas.worldCamera = null;
-        canvas.overrideSorting = false;
-
-        var scaler = _canvasGO.AddComponent<CanvasScaler>();
-        scaler.dynamicPixelsPerUnit = 100;
-
-        _canvasGO.AddComponent<GraphicRaycaster>();
-
-        _canvasRect = _canvasGO.GetComponent<RectTransform>();
-        _canvasRect.sizeDelta = new Vector2(barWorldWidth, barWorldHeight);
-
-        _canvasRect.localScale = invScale;
-
-        var bgGO = new GameObject("BG", typeof(Image));
-        bgGO.transform.SetParent(_canvasGO.transform, false);
-        var bgImg = bgGO.GetComponent<Image>();
-        bgImg.color = borderColor;
-        var bgRt = bgGO.GetComponent<RectTransform>();
-        bgRt.anchorMin = new Vector2(0f, 0f);
-        bgRt.anchorMax = new Vector2(1f, 1f);
-        bgRt.sizeDelta = new Vector2(0f, 0f);
-
-        var innerGO = new GameObject("Inner", typeof(Image));
-        innerGO.transform.SetParent(bgGO.transform, false);
-        var innerImg = innerGO.GetComponent<Image>();
-        innerImg.color = backgroundColor;
-        var innerRt = innerGO.GetComponent<RectTransform>();
-        float bt = borderThickness;
-        innerRt.anchorMin = new Vector2(0f, 0f);
-        innerRt.anchorMax = new Vector2(1f, 1f);
-        innerRt.sizeDelta = new Vector2(-bt * 2f, -bt * 2f);
-
-        var fgGO = new GameObject("Foreground", typeof(Image));
-        fgGO.transform.SetParent(innerGO.transform, false);
-        var fgImg = fgGO.GetComponent<Image>();
-        fgImg.color = barColor;
-        _foregroundRect = fgGO.GetComponent<RectTransform>();
-        _foregroundRect.anchorMin = new Vector2(0f, 0f);
-        _foregroundRect.anchorMax = new Vector2(0f, 1f);
-        _foregroundRect.pivot = new Vector2(0f, 0.5f);
-        _foregroundRect.sizeDelta = new Vector2(barWorldWidth - bt * 2f, barWorldHeight - bt * 2f);
-        _foregroundRect.anchoredPosition = new Vector2(bt, 0f);
+        if(_canvas==null)return;
+        Bounds bounds=new Bounds(transform.position,Vector3.zero);bool found=false;
+        foreach(var renderer in _renderers)
+            if(renderer.enabled){if(!found){bounds=renderer.bounds;found=true;}else bounds.Encapsulate(renderer.bounds);}
+        _canvas.transform.position=new Vector3(bounds.center.x,bounds.max.y+.17f,bounds.center.z);
+        foreach(var camera in Camera.allCameras)if(camera.enabled){_canvas.transform.rotation=camera.transform.rotation;break;}
     }
-
-    // UpdateBarImmediate: actualiza el ancho de la barra según la vida actual.
-    private void UpdateBarImmediate()
-    {
-        if (_foregroundRect == null || maxHealth <= 0) return;
-        float ratio = Mathf.Clamp01((float)currentHealth / maxHealth);
-        float innerWidth = barWorldWidth - borderThickness * 2f;
-        float newWidth = innerWidth * ratio;
-        _foregroundRect.sizeDelta = new Vector2(newWidth, barWorldHeight - borderThickness * 2f);
-    }
-
-    // OnWillRenderObject: orienta el canvas hacia la cámara que está renderizando.
-    private void OnWillRenderObject()
-    {
-        var cam = Camera.current;
-        if (cam == null || _canvasGO == null) return;
-
-        Vector3 dir = _canvasGO.transform.position - cam.transform.position;
-        if (dir.sqrMagnitude < 0.0001f) return;
-        _canvasGO.transform.rotation = Quaternion.LookRotation(dir.normalized, Vector3.up);
-    }
-
-    // SetHealth: asigna vida y actualiza estado.
-    // Parámetros: value - nueva vida.
-    public void SetHealth(int value)
-    {
-        currentHealth = Mathf.Clamp(value, 0, maxHealth);
-        UpdateBarImmediate();
-        CheckForDeath();
-    }
-
-    // CheckForDeath: notifica al Character/manager si la vida llega a 0.
-    private void CheckForDeath()
-    {
-        if (currentHealth <= 0)
-        {
-            var ch = GetComponent<Character>();
-            if (ch != null && ch.manager != null)
-            {
-                ch.manager.PlayerLost(ch);
-            }
-        }
-    }
-
-    // OnDestroy: destruye el canvas creado para evitar fugas.
-    private void OnDestroy()
-    {
-        if (_canvasGO != null) Destroy(_canvasGO);
-    }
+    public void CacheRenderers() => _renderers=GetComponentsInChildren<Renderer>();
+    private void OnDestroy(){if(_canvas!=null)Destroy(_canvas);}
 }

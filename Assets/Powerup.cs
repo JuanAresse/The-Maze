@@ -1,60 +1,34 @@
 using UnityEngine;
 
-/*
-GameObject: Powerup 
-Descripción: Maneja la interacción de recogida del powerup y notifica al Character y manager.
-*/
-
 public class Powerup : MonoBehaviour
 {
     public enum PowerupType { Phase, TrueRadar }
 
     public PowerupType Type = PowerupType.Phase;
-    public float VisualHeight = 0.1f;
+    public bool IsCollected { get; private set; }
 
-    // Reset: asegura que exista un collider trigger en edición.
-    private void Reset()
-    {
-        var col = GetComponent<Collider>();
-        if (col == null)
-        {
-            var bc = gameObject.AddComponent<BoxCollider>();
-            bc.isTrigger = true;
-        }
-        else
-        {
-            col.isTrigger = true;
-        }
-    }
+    private void Awake() => EnsureTrigger();
+    private void Reset() => EnsureTrigger();
 
-    // Awake: asegura collider trigger en runtime.
-    private void Awake()
-    {
-        var c = GetComponent<Collider>();
-        if (c == null)
-        {
-            var bc = gameObject.AddComponent<BoxCollider>();
-            bc.isTrigger = true;
-        }
-        else
-        {
-            c.isTrigger = true;
-        }
-    }
-
-    // OnTriggerEnter: si un Character entra, lo notifica, muestra UI y destruye el objeto.
     private void OnTriggerEnter(Collider other)
     {
-        var character = other.GetComponentInParent<Character>();
-        if (character == null) return;
+        Character character = other.GetComponentInParent<Character>();
+        Collect(character);
+    }
 
+    public void Collect(Character character)
+    {
+        if (character == null || IsCollected) return;
+        IsCollected = true;
         character.CollectPowerup(Type);
-
-        if (character.manager != null)
-        {
-            character.manager.ShowPowerupCollected(character, Type);
-        }
-
+        character.manager?.ShowPowerupCollected(character, Type);
         Destroy(gameObject);
+    }
+
+    private void EnsureTrigger()
+    {
+        Collider collider = GetComponent<Collider>();
+        if (collider == null) collider = gameObject.AddComponent<BoxCollider>();
+        collider.isTrigger = true;
     }
 }

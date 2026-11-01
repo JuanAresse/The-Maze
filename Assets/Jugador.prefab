@@ -130,7 +130,6 @@ MonoBehaviour:
   fixedHeight: 0.5
   visualRotateSpeed: 10
   _visualLocalOffset: {x: 0, y: 0.5, z: 0}
-  cameraController: {fileID: 0}
   queuedPhase: 0
   queuedTrueRadar: 0
   activePhase: 0
