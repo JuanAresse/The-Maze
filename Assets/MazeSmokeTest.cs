@@ -120,6 +120,9 @@ public class MazeSmokeTest : MonoBehaviour
         var pointer=new PointerEventData(EventSystem.current){position=RectTransformUtility.WorldToScreenPoint(null,zone.TransformPoint(zone.rect.center))};
         board.BeginDrag(palette,pointer);board.Drag(pointer);board.EndDrag(pointer);yield return null;
         Check(manager.CurrentPlan[0].Children.Count==1,"Arrastrar desde paleta a repetición");
+        var repeatIcon=GameObject.Find("RepeatSequence").GetComponentInChildren<ActionIcon>();
+        Check(repeatIcon!=null&&repeatIcon.GetComponent<CanvasRenderer>()!=null,"El icono del bloque tiene CanvasRenderer dentro de la zona recortada");
+        Canvas.ForceUpdateCanvases();
         var remove=GameObject.Find("Block_0_Repeat").transform.Find("Remove").GetComponent<Button>();
         Check(remove.GetComponentInChildren<Text>().rectTransform.rect.height>=remove.GetComponentInChildren<Text>().fontSize*1.15f,"El botón de eliminar tiene espacio para mostrar su icono");
         remove.onClick.Invoke();Check(manager.CurrentPlan.Count==0,"Eliminar un bloque desde la interfaz");

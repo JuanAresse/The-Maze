@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 
 // Small vector pictograms remain sharp at any CanvasScaler resolution.
+[RequireComponent(typeof(CanvasRenderer))]
 public class ActionIcon : MaskableGraphic
 {
     public ActionKind Kind;
