@@ -22,7 +22,7 @@ El generador visita las celdas y elimina paredes entre vecinas mediante un recor
 
 ## Turnos y presupuesto
 
-Comienza el jugador A. El jugador activo dispone de 30 segundos para preparar una ruta de hasta 8 acciones ejecutadas y como máximo un disparo. El rival no edita su ruta durante ese turno. Cada jugador conserva su propia secuencia entre turnos.
+Comienza el jugador A. El jugador activo dispone de 30 segundos para preparar una ruta de hasta 8 acciones ejecutadas. Cada jugador puede disparar una vez por turno desde su segundo turno propio. Esta regla también se aplica a los disparos dentro de Repetir. El rival no edita su ruta durante ese turno. Cada jugador conserva su propia secuencia entre turnos.
 
 Finalizar y ejecutar valida toda la ruta y la realiza paso a paso, con un intervalo de 0,25 segundos. Durante la ejecución se bloquea la edición, se indica el paso activo y se mantiene la cámara del mismo jugador. Luego se alterna el turno.
 

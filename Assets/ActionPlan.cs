@@ -40,13 +40,15 @@ public static class ActionPlan
     public const int MaxShots = 1;
     public const int MaxDepth = 6;
     public const int MaxBlocks = 64;
+    public const string FirstTurnShotError = "Cada jugador puede disparar a partir de su segundo turno.";
 
-    public static PlanValidation Validate(List<ActionBlock> blocks)
+    public static PlanValidation Validate(List<ActionBlock> blocks, bool allowShots = true)
     {
         var result = new PlanValidation();
         int stored = 0;
         Count(blocks, result, 0, new HashSet<ActionBlock>(), ref stored);
         if (result.Error.Length == 0 && result.Actions == 0) result.Error = "Añadí una acción o elegí Pasar turno.";
+        if (result.Error.Length == 0 && !allowShots && result.Shots > 0) result.Error = FirstTurnShotError;
         if (result.Error.Length == 0 && result.Actions > MaxActions) result.Error = "La ruta supera las 8 acciones por turno. Las repeticiones también cuentan.";
         if (result.Error.Length == 0 && result.Shots > MaxShots) result.Error = "Solo se permite un disparo por turno, también dentro de Repetir.";
         if (result.IsValid) Expand(blocks, new List<ActionBlock>(), result.Steps);

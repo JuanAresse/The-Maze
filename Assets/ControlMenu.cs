@@ -11,7 +11,15 @@ public class ControlMenu : MonoBehaviour
     [SerializeField] private GameObject mainMenuPanel;
     [SerializeField] private GameObject optionsPanel;
     [SerializeField] private GameObject instructionsPanel;
+    [SerializeField] private TMPro.TMP_Text instructionsText;
     [SerializeField] private GameObject pausePanel;
+
+    private const string Instructions =
+        "Ganás al llegar a la SALIDA o al dejar al rival sin vida. Elegí un laberinto de 4×4, 6×6 u 8×8.\n\n" +
+        "Tenés 30 segundos para armar tu ruta. Hacé clic en los bloques o arrastralos a Secuencia. Podés reordenarlos o borrarlos con ×. Cada turno admite hasta 8 acciones, contando cada paso de Repetir. Una pared o el borde bloquean el movimiento y consumen el paso.\n\n" +
+        "Cada jugador puede disparar a partir de su segundo turno, una vez por turno. El radar normal parte de la posición y orientación del rival antes de su último turno ejecutado. Seleccioná el bloque Disparar en Secuencia para desplazar la casilla objetivo o girar la referencia para el siguiente desplazamiento. Acertar resta 20 de vida.\n\n" +
+        "Los poderes se activan en tu próximo turno y vencen al terminarlo. Marcá Phase en un movimiento para atravesar un muro o Radar verdadero en un disparo para usar la posición y orientación actuales del rival.\n\n" +
+        "Añadí al menos una acción para usar Finalizar y ejecutar. Si una ruta con bloques es inválida, revisá el aviso debajo de Secuencia. Pasar turno omite la ruta, Continuo alterna las rutas guardadas y Escape pausa el juego.";
 
     private bool _isPaused;
 
@@ -19,13 +27,13 @@ public class ControlMenu : MonoBehaviour
     {
         ResumeTime();
         ShowPanel(mainMenuPanel);
-        if(instructionsPanel!=null)
-            foreach(var text in instructionsPanel.GetComponentsInChildren<TMPro.TMP_Text>(true))
-                if(text.text.Contains("Para ganar"))
-                {
-                    text.text="Ganás al alcanzar la salida o eliminar al rival.\n\nElegí un mapa de 4×4, 6×6 u 8×8 antes de jugar. Cada turno tiene 30 segundos para planificar, hasta 8 acciones ejecutadas y un disparo.\n\nArrastrá los iconos a Secuencia. Podés ordenarlos, eliminarlos y desplazarte horizontalmente. Seleccioná Repetir para editar su contenido y cantidad; las acciones interiores también consumen presupuesto.\n\nArriba, abajo, izquierda y derecha son direcciones fijas del laberinto. Las paredes bloquean el movimiento. Esperar consume un paso.\n\nDisparar usa el radar histórico del rival. Sus ajustes son relativos a la orientación registrada. Un impacto resta 20 de los 100 puntos de vida.\n\nPhase y Radar verdadero se recogen para el próximo turno. Activá Phase en un movimiento o Radar verdadero en un disparo. Expiran al terminar el turno.\n\nFinalizar y ejecutar inicia la ruta; Pasar turno la omite. Continuo alterna las rutas guardadas. Escape pausa también el tiempo de edición.";
-                    text.enableAutoSizing=true;text.fontSizeMin=11;text.fontSizeMax=20;
-                }
+        if (instructionsText != null)
+        {
+            instructionsText.text = Instructions;
+            instructionsText.enableAutoSizing = true;
+            instructionsText.fontSizeMin = 11;
+            instructionsText.fontSizeMax = 20;
+        }
     }
     private void Update()
     {

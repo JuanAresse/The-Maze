@@ -2112,25 +2112,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: "Para ganar deberas eliminar al jugador rival usando el m\xE9todo\r\nShoot(Radar)
-    o podras salir del laberinto antes que el y asi\r\nconseguir la victoria.\r\n\r\nPara
-    mover al personaje podras usar los siguientes m\xE9todos:\r\n\u2022 MoveUp /
-    MoveUp()\r\n\u2022 MoveDown / MoveDown()\r\n\u2022 MoveLeft / MoveLeft()\r\n\u2022
-    MoveRight / MoveRight()\r\n\u2022 Repeat(n){ ... }  (repite el bloque interior
-    n veces, puede anidarse)\r\n\r\nPara efectuar el disparo podras usar el siguiente
-    m\xE9todo:\r\n\u2022 Shoot(...) \u2014 obligatorio que uno de los argumentos
-    sea Radar o Radar().\r\nPuedes modificar la posici\xF3n de disparo moviendo el
-    radar, usando\r\nlos comandos de movimiento de los personajes.\r\nEjemplo de
-    uso v\xE1lido: Shoot(TurnLeft;MoveUp;Radar)\r\n\r\nTendras 2 power-ups disponibles:\r\n\r\n\u2022
-    Phase\r\nEfecto: permite atravesar un muro inmediato en la direcci\xF3n de movimiento
-    y \r\ncolocarse en la celda adyacente al otro lado (una sola celda).\r\nUso/consumo:
-    se consume en el momento en que intentas moverte hacia una pared \r\ny existe
-    el muro inmediato. Si no lo usas durante el turno activo, se elimina al final
-    del turno.\r\n\u2022 TrueRadar\r\nEfecto: la pr\xF3xima consulta del radar devuelve
-    la posici\xF3n y orientaci\xF3n ACTUAL del enemigo.\r\nUso/consumo: cuando es
-    llamado (por ejemplo desde Shoot(...Radar...)), si est\xE1 activo devuelve \r\nla
-    posici\xF3n actual del oponente y lo consume . Si no se usa durante el turno
-    activo, se elimina al final del turno."
+  m_text:
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -4411,6 +4393,7 @@ MonoBehaviour:
   mainMenuPanel: {fileID: 0}
   optionsPanel: {fileID: 1611149715}
   instructionsPanel: {fileID: 309830665}
+  instructionsText: {fileID: 1318244891}
   pausePanel: {fileID: 1897992020}
 --- !u!4 &1947229604
 Transform:

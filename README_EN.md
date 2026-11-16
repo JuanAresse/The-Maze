@@ -4,7 +4,7 @@ English · [Español](README.md)
 
 A local, turn-based strategy game for two players, built with Unity and C#. Players create visual action sequences to navigate a procedurally generated maze, reach the exit, or defeat their opponent.
 
-Developed individually by **Juan Arese**. This repository contains the updated October 2026 version.
+Developed individually by **Juan Arese**. This repository contains the October 2026 version and the November 16, 2026 rules update.
 
 ![Local game and visual action editor](docs/assets/02-partida.png)
 
@@ -12,7 +12,7 @@ Developed individually by **Juan Arese**. This repository contains the updated O
 
 - Connected procedural mazes in three sizes: 4×4, 6×6, and 8×8.
 - Visual action planning with movement, waiting, shooting, and nested repeats.
-- Plan validation before execution: eight actions and one shot per turn, with bounded nesting and cycle detection.
+- Plan validation before execution: up to eight actions per turn, with bounded nesting and cycle detection. Each player can fire once per turn starting on their second turn.
 - Thirty-second planning turns, player health, exit conditions, and Phase/Radar powers.
 - Separate responsibilities for plan representation, validation, user interaction, and turn execution.
 

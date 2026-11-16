@@ -57,6 +57,12 @@ public class MazeSmokeTest : MonoBehaviour
     {
         while(!UnityEngine.Rendering.SplashScreen.isFinished)yield return null;
         yield return new WaitForSecondsRealtime(.7f);
+        Find<ControlMenu>().OpenInstructions();
+        yield return null;
+        CheckInstructions();
+        ScreenCapture.CaptureScreenshot(Path.Combine(_output,"instrucciones-menu.png"));
+        yield return new WaitForEndOfFrame();
+        Find<ControlMenu>().BackToMainMenu();
         Find<ControlMenu>().Play();yield return null;
         Check(Find<MazeSetupDialog>()!=null,"El menú permite elegir tamaño antes de jugar");
         ScreenCapture.CaptureScreenshot(Path.Combine(_output,"selector-tamano.png"));yield return new WaitForEndOfFrame();yield return new WaitForSecondsRealtime(.15f);
@@ -71,15 +77,42 @@ public class MazeSmokeTest : MonoBehaviour
             Check(visited.Count==size*size,"Todas las casillas conectadas "+size+"x"+size);
         }
         var manager=Find<TurnBasedManager>();manager.StepDelay=.03f;
+        var board=Find<MovementBoard>();
+        Check(manager.CurrentTurn==0,"Comienza A");
+        CheckFirstTurnShotBlocked(manager, board, false);
+        manager.CurrentPlan.Clear();
+        board.Add(ActionKind.Wait);
+        manager.Execute();
+        while(manager.IsExecuting)yield return null;
+        Check(manager.CurrentTurn==1,"Ejecutar la primera ruta cambia al turno de B");
+        CheckFirstTurnShotBlocked(manager, board, true);
+        manager.ToggleContinuous();
+        yield return null;
+        yield return null;
+        Check(!manager.Continuous&&!manager.IsExecuting&&manager.CurrentTurn==1,"Continuo rechaza el disparo de primer turno");
+        manager.CurrentPlan.Clear();
+        manager.PassTurn();
+        Check(manager.CurrentTurn==0&&manager.CanShootThisTurn&&GameObject.Find("Palette_Shoot").GetComponent<Button>().interactable,"A puede disparar en su segundo turno");
+        manager.PassTurn();
+        Check(manager.CurrentTurn==1&&manager.CanShootThisTurn&&GameObject.Find("Palette_Shoot").GetComponent<Button>().interactable,"B puede disparar en su segundo turno tras pasar el primero");
+        manager.PassTurn();
+        manager.CurrentPlan.Clear();
+        board.Refresh();
         foreach(var powerup in FindObjectsByType<Powerup>(FindObjectsSortMode.None))
             Check(powerup.GetComponent<Renderer>().sharedMaterial.shader.name=="Universal Render Pipeline/Lit","Material de poder compatible con URP: "+powerup.Type);
         Check(GameObject.Find("ExitMarker").GetComponent<Renderer>().sharedMaterial.color.g>.6f,"La salida tiene una señal verde");
-        Check(manager.CurrentTurn==0,"Comienza A");Check(Camera.allCameras.Length==1,"Una sola cámara activa");Check(FindObjectsByType<MovementBoard>(FindObjectsSortMode.None).Length==1,"Un solo panel de movimientos");
+        Check(Camera.allCameras.Length==1,"Una sola cámara activa");Check(FindObjectsByType<MovementBoard>(FindObjectsSortMode.None).Length==1,"Un solo panel de movimientos");
         Check(Camera.allCameras[0].rect==new Rect(0,0,1,1),"La cámara ocupa toda la pantalla");
         Check(Camera.allCameras[0].GetComponent<CamaraTerceraPersona>().objetivo==manager.CurrentPlayer.transform,"La cámara sigue al jugador activo");
         float time=manager.TimeRemaining;Find<ControlMenu>().Pause();yield return new WaitForSecondsRealtime(.2f);
         Check(Mathf.Abs(manager.TimeRemaining-time)<.01f,"La pausa detiene el tiempo de edición");Find<ControlMenu>().Resume();yield return null;
-        var board=Find<MovementBoard>();
+        Find<ControlMenu>().Pause();
+        Find<ControlMenu>().OpenInstructionsFromPause();
+        yield return null;
+        CheckInstructions();
+        ScreenCapture.CaptureScreenshot(Path.Combine(_output,"instrucciones-pausa.png"));
+        yield return new WaitForEndOfFrame();
+        Find<ControlMenu>().Resume();
         // Native pointer drag from the palette into the repeat editor, including reorder.
         board.Add(ActionKind.Repeat);yield return null;
         var palette=GameObject.Find("Palette_Up").GetComponent<ActionDrag>();
@@ -130,6 +163,38 @@ public class MazeSmokeTest : MonoBehaviour
         Check(Find<GameOverManager>()!=null&&Time.timeScale==0,"Se muestra el resultado y se detiene el juego");
         Check(_errors.Count==0,"Sin errores de Unity durante la integración");
     }
+
+    private void CheckInstructions()
+    {
+        var text=Array.Find(FindObjectsByType<TMPro.TMP_Text>(FindObjectsSortMode.None),
+            label=>label.text.Contains(ActionPlan.FirstTurnShotError.TrimEnd('.')));
+        Check(text!=null&&text.text.Contains("Secuencia")&&!text.text.Contains("Shoot("),"Instrucciones actuales visibles");
+        text.ForceMeshUpdate();
+        Check(!text.isTextOverflowing,"El texto de instrucciones cabe en el panel");
+    }
+
+    private void CheckFirstTurnShotBlocked(TurnBasedManager manager, MovementBoard board, bool nested)
+    {
+        var palette=GameObject.Find("Palette_Shoot");
+        Check(!manager.CanShootThisTurn&&!palette.GetComponent<Button>().interactable,"Disparar está deshabilitado en el primer turno de "+manager.CurrentTurn);
+        board.Add(ActionKind.Shoot);
+        var drag=palette.GetComponent<ActionDrag>();
+        var zone=GameObject.Find("MainSequence").GetComponent<ScrollRect>().viewport;
+        var pointer=new PointerEventData(EventSystem.current){position=RectTransformUtility.WorldToScreenPoint(null,zone.TransformPoint(zone.rect.center))};
+        board.BeginDrag(drag,pointer);
+        board.EndDrag(pointer);
+        Check(manager.CurrentPlan.Count==0,"Ni el clic ni el arrastre agregan un disparo en el primer turno");
+
+        var shot=new ActionBlock(ActionKind.Shoot){UseTrueRadar=true};
+        var repeat=new ActionBlock(ActionKind.Repeat){Repetitions=1};
+        repeat.Children.Add(shot);
+        manager.CurrentPlan.Add(nested?repeat:shot);
+        board.Refresh();
+        manager.Execute();
+        Check(!manager.IsExecuting&&manager.Feedback==ActionPlan.FirstTurnShotError,"El turno rechaza el disparo "+(nested?"dentro de Repetir":"directo"));
+        Check(manager.PlayerA.health.currentHealth==100&&manager.PlayerB.health.currentHealth==100,"El disparo rechazado no resta vida");
+    }
+
     private void Finish(string failure)
     {
         if(_finished)return;_finished=true;

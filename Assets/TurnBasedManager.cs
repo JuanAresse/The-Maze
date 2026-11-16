@@ -27,11 +27,14 @@ public class TurnBasedManager : MonoBehaviour
     private readonly Character.Facing[] _lastFacing = new Character.Facing[2];
     private readonly Character.Facing[] _previousFacing = new Character.Facing[2];
     private readonly List<ActionBlock>[] _plans = { new List<ActionBlock>(), new List<ActionBlock>() };
+    private readonly bool[] _hasFinishedFirstTurn = new bool[2];
     private MovementBoard _board;
     private bool _initialized;
     private int _shots;
     public List<ActionBlock> CurrentPlan => _plans[CurrentTurn];
+    public bool CanShootThisTurn => _hasFinishedFirstTurn[CurrentTurn];
     public bool CanEdit => _initialized && !IsExecuting && !GameEnded && Time.timeScale > 0f;
+    public PlanValidation ValidateCurrentPlan() => ActionPlan.Validate(CurrentPlan, CanShootThisTurn);
 
     public void Initialize(Character a, Character b, Camera camA, Camera camB)
     {
@@ -54,7 +57,7 @@ public class TurnBasedManager : MonoBehaviour
         if (!_initialized || GameEnded || Time.timeScale <= 0f || IsExecuting) return;
         if (Continuous)
         {
-            if (ActionPlan.Validate(CurrentPlan).IsValid) Execute();
+            if (ValidateCurrentPlan().IsValid) Execute();
             else { Continuous = false; ShowFeedback("Continuo detenido: la ruta de este jugador necesita revisión."); _board.Refresh(); }
             return;
         }
@@ -65,7 +68,7 @@ public class TurnBasedManager : MonoBehaviour
     public void Execute()
     {
         if (!CanEdit) return;
-        var validation = ActionPlan.Validate(CurrentPlan);
+        var validation = ValidateCurrentPlan();
         if (!validation.IsValid) { ShowFeedback(validation.Error); return; }
         StartCoroutine(ExecutePlan(validation));
     }
@@ -87,7 +90,7 @@ public class TurnBasedManager : MonoBehaviour
         }
         if (Continuous) yield return new WaitForSeconds(ContinuousTurnDelay);
         IsExecuting = false; ActiveStep = null;
-        FinishTurn(true, "Tu turno: prepará hasta 8 acciones y un disparo.");
+        FinishTurn(true, "Tu turno: prepará hasta 8 acciones.");
     }
 
     public void PassTurn()
@@ -98,6 +101,7 @@ public class TurnBasedManager : MonoBehaviour
     private void FinishTurn(bool executed, string message)
     {
         int i = CurrentTurn;
+        _hasFinishedFirstTurn[i] = true;
         if (executed)
         {
             _previous[i] = _last[i]; _previousFacing[i] = _lastFacing[i];
@@ -149,6 +153,7 @@ public class TurnBasedManager : MonoBehaviour
 
     public bool RegisterShot(Character shooter)
     {
+        if (!CanShootThisTurn) { ShowFeedback(ActionPlan.FirstTurnShotError); return false; }
         if (!IsExecuting || GameEnded || shooter != CurrentPlayer || _shots >= ActionPlan.MaxShots)
         { ShowFeedback("Solo se permite un disparo por turno."); return false; }
         _shots++; return true;
@@ -156,7 +161,7 @@ public class TurnBasedManager : MonoBehaviour
 
     public void TryShoot(Character shooter, List<RadarAdjustment> adjustments, bool useTrueRadar)
     {
-        if (!IsExecuting || shooter != CurrentPlayer || _shots >= ActionPlan.MaxShots) return;
+        if (!IsExecuting || !CanShootThisTurn || shooter != CurrentPlayer || _shots >= ActionPlan.MaxShots) return;
         bool consumed = useTrueRadar && shooter.activeTrueRadar;
         var radar = GetLastKnownRadarFor(shooter, useTrueRadar);
         Vector2Int target = radar.pos;

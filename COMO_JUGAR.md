@@ -10,7 +10,7 @@ Solo se muestra la cámara del jugador activo y una bandeja inferior. La cámara
 - Arrastrar los bloques para cambiar el orden. La marca verde indica dónde se insertarán. Se pueden trasladar entre la ruta principal y las repeticiones.
 - Usar la barra horizontal, las flechas o la rueda sobre la secuencia para recorrer rutas largas. Al arrastrar cerca de un borde, la secuencia se desplaza automáticamente.
 - Pulsar **×** para eliminar un bloque; **Vaciar** vacía la lista que se está editando.
-- Hay **30 segundos para planificar**, un máximo de **8 acciones ejecutadas** y **1 disparo por turno**. Las repeticiones cuentan todos sus pasos. Una ruta que supera el límite se conserva para corregirla, pero no se ejecuta ni se recorta.
+- Hay **30 segundos para planificar** y un máximo de **8 acciones ejecutadas**. Cada jugador tiene **1 disparo por turno desde su segundo turno**. Las repeticiones cuentan todos sus pasos. Una ruta que supera el límite se conserva para corregirla, pero no se ejecuta ni se recorta.
 - **Finalizar y ejecutar** realiza la secuencia completa, con 0,25 segundos entre acciones. La acción actual se resalta y se desplaza a la vista.
 - **Pasar turno** omite la ejecución. Al agotarse el tiempo también cambia el turno sin ejecutar.
 - **Continuo** alterna las rutas guardadas de A y B; se detiene si la siguiente ruta está vacía o es inválida. **Detener** permite terminar la ejecución que ya empezó.
@@ -28,6 +28,8 @@ Los poderes se recogen al pasar por su casilla, están disponibles al comenzar e
 - **Radar verdadero**, esfera magenta: seleccionar el disparo y activar **Radar verdadero** para consultar la posición y orientación actuales del rival. Si el poder no está disponible se informa y se usa el radar normal.
 
 ## Disparo, vida y victoria
+
+El bloque **Disparar** se habilita a partir del segundo turno de cada jugador. Ejecutar la ruta, pulsar **Pasar turno** o agotar el tiempo termina el primer turno.
 
 El radar normal utiliza la posición y orientación anteriores al último turno ejecutado del rival. Al inicio usa su posición inicial. Los ajustes del disparo desplazan esa casilla objetivo o giran su orientación de referencia; no mueven al personaje. Los botones **Girar radar**, **Radar adelante/atrás/izquierda/derecha** añaden ajustes ordenados, y pulsar un ajuste lo elimina.
 

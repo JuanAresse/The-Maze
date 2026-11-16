@@ -8,7 +8,7 @@ The Maze es un juego local de estrategia por turnos para dos personas, desarroll
 
 El interés técnico del proyecto está en convertir una intención del usuario en un plan estructurado: editar bloques, validar restricciones y ejecutar pasos sobre un entorno con estado. Es un caso de ingeniería de software que permite explorar algoritmos, modelado de acciones, control de ejecución y calidad de interfaces.
 
-Esta presentación describe la entrega actualizada del **20 de octubre de 2026**.
+Esta presentación describe la entrega del **20 de octubre de 2026** y la actualización de reglas del **16 de noviembre de 2026**.
 
 ## Capturas
 
@@ -24,7 +24,7 @@ Esta presentación describe la entrega actualizada del **20 de octubre de 2026**
 4. Validar y ejecutar la ruta, observando su avance paso a paso.
 5. Alternar turnos hasta alcanzar la salida o reducir la vida del rival a cero.
 
-Cada turno dispone de 30 segundos, hasta ocho acciones ejecutadas y un disparo. Las repeticiones consumen el presupuesto de las acciones que contienen. Una ruta inválida permanece disponible para corregirla.
+Cada turno dispone de 30 segundos y hasta ocho acciones ejecutadas. Cada jugador puede disparar una vez por turno desde su segundo turno. Las repeticiones consumen el presupuesto de las acciones que contienen. Una ruta inválida permanece disponible para corregirla.
 
 Los poderes **Phase** y **Radar verdadero** añaden decisiones sobre cuándo atravesar un muro o consultar la ubicación actual del rival. El radar normal trabaja con información histórica, por lo que la estrategia también depende de información incompleta.
 

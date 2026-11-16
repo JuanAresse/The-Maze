@@ -14,7 +14,7 @@ public class MovementBoard : MonoBehaviour
     private readonly List<ActionDropZone> _zones = new List<ActionDropZone>();
     private readonly Dictionary<ActionBlock, List<Image>> _tiles = new Dictionary<ActionBlock, List<Image>>();
     private Text _title, _status, _feedback, _budget;
-    private Button _execute, _continuous;
+    private Button _execute, _continuous, _shoot;
     private Text _continuousLabel;
     private PlanValidation _validation;
     private List<ActionBlock> _plan;
@@ -68,6 +68,7 @@ public class MovementBoard : MonoBehaviour
         {
             var kind=(ActionKind)i; float x=.012f+(i%4)*.070f;float y=i<4?.535f:.285f;
             var button=MazeUI.Button("Palette_"+kind,_tray,"",new Vector2(x,y),new Vector2(x+.068f,y+.245f),()=>Add(kind));
+            if(kind==ActionKind.Shoot)_shoot=button;
             AddIcon(button.transform,kind,new Vector2(.34f,.36f),new Vector2(.66f,.97f),MazeUI.Ink);
             LabelAt(button.transform,"Name",ActionPlan.Label(kind),new Vector2(0,0),new Vector2(1,.34f),12,TextAnchor.MiddleCenter).color=MazeUI.Ink;
             var drag=button.gameObject.AddComponent<ActionDrag>();drag.Board=this;drag.Kind=kind;
@@ -83,7 +84,7 @@ public class MovementBoard : MonoBehaviour
     public void Refresh()
     {
         if (_plan==null)return;
-        _validation=ActionPlan.Validate(_plan);
+        _validation=_manager.ValidateCurrentPlan();
         float position=_mainScroll.horizontalNormalizedPosition;
         _tiles.Clear(); _zones.Clear();
         FillScroll(_mainScroll,_plan,null);
@@ -108,11 +109,14 @@ public class MovementBoard : MonoBehaviour
         _status.text=(_manager.IsExecuting?$"Paso {_manager.StepNumber}/{_manager.StepCount}":$"Tiempo: {Mathf.CeilToInt(_manager.TimeRemaining)} s")+$"  |  Vida: {player.health.currentHealth}/100  |  Phase: {phase}  |  Radar: {radar}";
         var check=_validation;
         if(check==null)return;
-        _budget.text=$"SECUENCIA · {check.Actions}/8 acciones · {check.Shots}/1 disparos";
+        _budget.text=_manager.CanShootThisTurn
+            ? $"SECUENCIA · {check.Actions}/8 acciones · {check.Shots}/1 disparos"
+            : $"SECUENCIA · {check.Actions}/8 acciones · Disparo desde el 2.º turno";
         _budget.color=check.IsValid||_plan.Count==0?MazeUI.Muted:new Color(1,.70f,.35f);
         _feedback.text=_manager.Feedback;
         if(!check.IsValid&&_plan.Count>0&&!_manager.IsExecuting)_feedback.text=check.Error;
         _execute.interactable=CanEdit&&check.IsValid;
+        _shoot.interactable=CanEdit&&_manager.CanShootThisTurn;
         _continuousLabel.text=_manager.Continuous?"Detener":"Continuo";
         _continuous.interactable=!_manager.GameEnded&&Time.timeScale>0;
     }
@@ -167,6 +171,7 @@ public class MovementBoard : MonoBehaviour
     public void Add(ActionKind kind)
     {
         if(!CanEdit)return;
+        if(kind==ActionKind.Shoot&&!_manager.CanShootThisTurn)return;
         if(StoredCount(_plan)>=ActionPlan.MaxBlocks){_manager.ShowFeedback("El editor admite hasta 64 bloques. Reducí la ruta a 8 acciones para ejecutar.");return;}
         var block=new ActionBlock(kind);CurrentList().Add(block);Changed();
         if(kind==ActionKind.Repeat)OpenEditor(block);
@@ -310,6 +315,7 @@ public class MovementBoard : MonoBehaviour
 
     public void BeginDrag(ActionDrag source,PointerEventData data)
     {
+        if(source.Block==null&&source.Kind==ActionKind.Shoot&&!_manager.CanShootThisTurn)return;
         if(!CanEdit)return;CancelDrag();_dragBlock=source.Block;_dragSource=source.Source;_dragKind=source.Kind;
         _ghost=MazeUI.Box("DraggingAction",_canvas.transform,new Vector2(.5f,.5f),new Vector2(.5f,.5f),MazeUI.Green);
         _ghost.sizeDelta=new Vector2(100,54);_ghost.gameObject.AddComponent<CanvasGroup>().blocksRaycasts=false;
