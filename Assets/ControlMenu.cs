@@ -28,12 +28,7 @@ public class ControlMenu : MonoBehaviour
         ResumeTime();
         ShowPanel(mainMenuPanel);
         if (instructionsText != null)
-        {
             instructionsText.text = Instructions;
-            instructionsText.enableAutoSizing = true;
-            instructionsText.fontSizeMin = 11;
-            instructionsText.fontSizeMax = 20;
-        }
     }
     private void Update()
     {

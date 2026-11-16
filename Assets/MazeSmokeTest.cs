@@ -63,6 +63,12 @@ public class MazeSmokeTest : MonoBehaviour
         ScreenCapture.CaptureScreenshot(Path.Combine(_output,"instrucciones-menu.png"));
         yield return new WaitForEndOfFrame();
         Find<ControlMenu>().BackToMainMenu();
+        Find<ControlMenu>().OpenOptions();
+        yield return null;
+        CheckVolumeSlider();
+        ScreenCapture.CaptureScreenshot(Path.Combine(_output,"opciones-menu.png"));
+        yield return new WaitForEndOfFrame();
+        Find<ControlMenu>().BackToMainMenu();
         Find<ControlMenu>().Play();yield return null;
         Check(Find<MazeSetupDialog>()!=null,"El menú permite elegir tamaño antes de jugar");
         ScreenCapture.CaptureScreenshot(Path.Combine(_output,"selector-tamano.png"));yield return new WaitForEndOfFrame();yield return new WaitForSecondsRealtime(.15f);
@@ -111,6 +117,11 @@ public class MazeSmokeTest : MonoBehaviour
         yield return null;
         CheckInstructions();
         ScreenCapture.CaptureScreenshot(Path.Combine(_output,"instrucciones-pausa.png"));
+        yield return new WaitForEndOfFrame();
+        Find<ControlMenu>().OpenOptionsFromPause();
+        yield return null;
+        CheckVolumeSlider();
+        ScreenCapture.CaptureScreenshot(Path.Combine(_output,"opciones-pausa.png"));
         yield return new WaitForEndOfFrame();
         Find<ControlMenu>().Resume();
         // Native pointer drag from the palette into the repeat editor, including reorder.
@@ -227,6 +238,64 @@ public class MazeSmokeTest : MonoBehaviour
         Check(text!=null&&text.text.Contains("Secuencia")&&!text.text.Contains("Shoot("),"Instrucciones actuales visibles");
         text.ForceMeshUpdate();
         Check(!text.isTextOverflowing,"El texto de instrucciones cabe en el panel");
+        var panel=text.transform.parent;
+        var heading=Array.Find(panel.GetComponentsInChildren<TMPro.TMP_Text>(),
+            label=>label.text=="Instrucciones");
+        var back=panel.GetComponentInChildren<Button>();
+        Check(heading!=null&&back!=null,"Instrucciones tiene título y botón Volver");
+        var title=ScreenRect(heading.rectTransform);
+        var body=ScreenRect(text.rectTransform);
+        var footer=ScreenRect((RectTransform)back.transform);
+        var bounds=text.textBounds;
+        var textTop=RectTransformUtility.WorldToScreenPoint(null,text.transform.TransformPoint(bounds.max));
+        var textBottom=RectTransformUtility.WorldToScreenPoint(null,text.transform.TransformPoint(bounds.min));
+        Check(title.yMin>body.yMax&&footer.yMax<body.yMin&&textTop.y<=body.yMax+1f&&textBottom.y>=body.yMin-1f,
+            "El texto queda entre el título y Volver, sin superponerse");
+        Check(Mathf.Abs(body.center.x-Screen.width*.5f)<1f&&Mathf.Abs(title.center.x-body.center.x)<1f,
+            "El título y el bloque de instrucciones están centrados");
+    }
+
+    private void CheckVolumeSlider()
+    {
+        var control=Find<ControlVolumen>();
+        Check(control!=null,"Opciones conecta el control de volumen");
+        var slider=control.sliderVolumen;
+        var track=ScreenRect((RectTransform)slider.transform.Find("Background"));
+        var rail=ScreenRect((RectTransform)slider.handleRect.parent);
+        float original=slider.value;
+        try
+        {
+            foreach(float value in new[]{0f,.5f,1f})
+            {
+                var pointer=new PointerEventData(EventSystem.current)
+                {
+                    button=PointerEventData.InputButton.Left,
+                    position=new Vector2(Mathf.Lerp(rail.xMin,rail.xMax,value),rail.center.y)
+                };
+                slider.OnDrag(pointer);
+                Canvas.ForceUpdateCanvases();
+                var handle=ScreenRect(slider.handleRect);
+                var fill=ScreenRect(slider.fillRect);
+                Check(Mathf.Abs(slider.normalizedValue-value)<.01f&&Mathf.Abs(control.musicaFondo.volume-slider.value)<.01f,
+                    "Arrastrar el control ajusta el volumen a "+value);
+                Check(handle.xMin>=track.xMin-1f&&handle.xMax<=track.xMax+1f&&
+                    Mathf.Abs(handle.center.y-track.center.y)<1f&&Mathf.Abs(fill.xMax-handle.center.x)<1f,
+                    "La perilla y el relleno coinciden con la barra en "+value);
+            }
+        }
+        finally
+        {
+            slider.value=original;
+        }
+    }
+
+    private static Rect ScreenRect(RectTransform transform)
+    {
+        var corners=new Vector3[4];
+        transform.GetWorldCorners(corners);
+        var min=RectTransformUtility.WorldToScreenPoint(null,corners[0]);
+        var max=RectTransformUtility.WorldToScreenPoint(null,corners[2]);
+        return Rect.MinMaxRect(min.x,min.y,max.x,max.y);
     }
 
     private void CheckFirstTurnShotBlocked(TurnBasedManager manager, MovementBoard board, bool nested)
