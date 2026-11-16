@@ -98,29 +98,32 @@ public class Character : MonoBehaviour
         if (_grid == null || dir == Vector2Int.zero) return false;
 
         SetFacing(DirToFacing(dir));
-        if (!IsInside(_pos + dir))
+        Vector2Int destination = _pos + dir;
+        if (!IsInside(destination))
         {
             manager?.ShowFeedback("Límite del laberinto: no avanza.");
             return false;
         }
 
-        if (usePhase && activePhase && HasWall(_pos, dir))
+        bool blockedByWall = HasWall(_pos, dir) || HasWall(destination, -dir);
+        if (blockedByWall && (!usePhase || !activePhase))
         {
-            _pos += dir;
-            activePhase = false;
-            manager?.ShowFeedback("Phase consumido: atravesaste un muro.");
-            ApplyPosition();
-            return true;
-        }
-
-        if (!CanMove(_pos, dir))
-        {
-            manager?.ShowFeedback(usePhase && !activePhase ? "Movimiento bloqueado: no tenés Phase disponible." : "Movimiento bloqueado por una pared.");
+            manager?.ShowFeedback(usePhase ? "Movimiento bloqueado: no tenés Phase disponible." : "Movimiento bloqueado por una pared.");
             return false;
         }
 
-        _pos += dir;
-        manager?.ShowFeedback("Avanzaste una casilla.");
+        _pos = destination;
+        if (blockedByWall)
+        {
+            activePhase = false;
+            manager?.ShowFeedback("Phase consumido: atravesaste un muro.");
+        }
+        else
+        {
+            manager?.ShowFeedback(usePhase && activePhase
+                ? "Avanzaste. Phase sigue disponible porque no había muro."
+                : "Avanzaste una casilla.");
+        }
         ApplyPosition();
         return true;
     }
@@ -186,13 +189,6 @@ public class Character : MonoBehaviour
             }
             CheckExit();
         }
-    }
-
-    private bool CanMove(Vector2Int from, Vector2Int dir)
-    {
-        Vector2Int to = from + dir;
-        if (!IsInside(to) || HasWall(from, dir)) return false;
-        return !HasWall(to, -dir);
     }
 
     private bool HasWall(Vector2Int cellPos, Vector2Int dir)

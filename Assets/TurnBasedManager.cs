@@ -108,11 +108,10 @@ public class TurnBasedManager : MonoBehaviour
             _last[i] = _players[i].CellPosition; _lastFacing[i] = _players[i].CurrentFacing;
         }
         _players[i].ClearActivePowerups();
-        SetTurn(1 - i);
-        ShowFeedback(message);
+        SetTurn(1 - i, message);
     }
 
-    private void SetTurn(int index)
+    private void SetTurn(int index, string message = "Arrastrá acciones. Las direcciones corresponden al laberinto.")
     {
         CurrentTurn = index; _shots = 0;
         TimeRemaining = EditTimeLimit;
@@ -121,7 +120,9 @@ public class TurnBasedManager : MonoBehaviour
         if(UnityEngine.EventSystems.EventSystem.current!=null)
             UnityEngine.EventSystems.EventSystem.current.SetSelectedGameObject(null);
         _board.SetPlan(CurrentPlan);
-        ShowFeedback("Arrastrá acciones. Las direcciones corresponden al laberinto.");
+        ShowFeedback(CurrentPlayer.activePhase
+            ? "Phase disponible: seleccioná un movimiento en Secuencia y activá Phase en esa acción."
+            : message);
     }
 
     private void SelectCamera(int index)

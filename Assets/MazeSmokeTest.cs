@@ -69,7 +69,7 @@ public class MazeSmokeTest : MonoBehaviour
         Click("Size_8");Click("StartMatch");yield return new WaitForSecondsRealtime(1);
         foreach(int size in new[]{8,4,6})
         {
-            if(size!=8){GameOptions.ChooseSize(size);SceneManager.LoadScene("The maze");yield return new WaitForSecondsRealtime(.7f);}
+            if(size!=8){GameOptions.ChooseSize(size);UnityEngine.Random.InitState(size);SceneManager.LoadScene("The maze");yield return new WaitForSecondsRealtime(.7f);}
             var cells=Grid(Find<MazeGenerator>());Check(cells.GetLength(0)==size&&cells.GetLength(1)==size,"Generación "+size+"x"+size);
             var visited=new HashSet<Vector2Int>{Vector2Int.zero};var queue=new Queue<Vector2Int>();queue.Enqueue(Vector2Int.zero);
             var directions=new[]{Vector2Int.up,Vector2Int.down,Vector2Int.left,Vector2Int.right};
@@ -140,15 +140,9 @@ public class MazeSmokeTest : MonoBehaviour
         Check(!b.activePhase,"El vencimiento de tiempo elimina poderes activos");manager.EditTimeLimit=30;while(manager.CurrentTurn!=0)manager.PassTurn();
         // Reset the current timer after the short expiry test.
         manager.PassTurn();manager.PassTurn();
-        var grid=Grid(Find<MazeGenerator>());bool tested=false;
-        for(int x=0;x<6&&!tested;x++)for(int y=0;y<6&&!tested;y++)foreach(var dir in new[]{Vector2Int.up,Vector2Int.down,Vector2Int.left,Vector2Int.right})
-        {
-            var from=new Vector2Int(x,y);var to=from+dir;
-            if(!Inside(grid,to)||Exit(grid,from)||Exit(grid,to)||!Wall(grid[x,y],dir))continue;
-            a.TeleportTo(from);a.activePhase=true;Check(!a.TryMove(dir,false)&&a.CellPosition==from&&a.activePhase,"Phase no se consume automáticamente");
-            Check(a.TryMove(dir,true)&&a.CellPosition==to&&!a.activePhase,"Phase se aplica al movimiento elegido");tested=true;break;
-        }
-        Check(tested,"Existe un muro para probar Phase");
+        var grid=Grid(Find<MazeGenerator>());
+        var phaseCheck=CheckPhase(manager,board,grid);
+        while(phaseCheck.MoveNext())yield return phaseCheck.Current;
         var historical=manager.GetLastKnownRadarFor(a).pos;
         var safe=new Vector2Int(2,2);if(Exit(grid,safe))safe=new Vector2Int(2,3);b.TeleportTo(safe);a.activeTrueRadar=true;
         Check(manager.GetLastKnownRadarFor(a).pos==historical&&a.activeTrueRadar,"Radar normal conserva el dato histórico y el poder");
@@ -165,6 +159,65 @@ public class MazeSmokeTest : MonoBehaviour
         a.TeleportTo(exit);Check(manager.GameEnded,"Llegar a la salida termina la partida");yield return null;
         Check(Find<GameOverManager>()!=null&&Time.timeScale==0,"Se muestra el resultado y se detiene el juego");
         Check(_errors.Count==0,"Sin errores de Unity durante la integración");
+    }
+
+    private IEnumerator CheckPhase(TurnBasedManager manager, MovementBoard board, MazeCell[,] grid)
+    {
+        var player = manager.CurrentPlayer;
+        var phase = Array.Find(FindObjectsByType<Powerup>(FindObjectsSortMode.None), p => p.Type == Powerup.PowerupType.Phase);
+        Check(phase != null, "El laberinto contiene un Phase real");
+        Vector2Int pickup = new Vector2Int(Mathf.RoundToInt(phase.transform.position.x), Mathf.RoundToInt(phase.transform.position.z));
+        var directions = new[] { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right };
+        int approach = Array.FindIndex(directions, dir => Inside(grid, pickup - dir) &&
+            !Exit(grid, pickup - dir) && !Wall(grid[pickup.x, pickup.y], -dir));
+        Check(approach >= 0, "Hay un pasillo por donde llegar a Phase");
+        player.TeleportTo(pickup - directions[approach]);
+        Click("Palette_" + (ActionKind)approach);
+        Click("ExecuteRoute");
+        Check(player.CellPosition == pickup && phase.IsCollected && player.queuedPhase && !player.activePhase,
+            "Un movimiento recoge Phase y lo guarda para el siguiente turno propio");
+        while (manager.IsExecuting) yield return null;
+        Click("PassTurn");
+        Check(manager.CurrentPlayer == player && player.activePhase && !player.queuedPhase &&
+            manager.Feedback.Contains("seleccioná un movimiento"), "Al volver al turno propio Phase se activa y explica cómo usarlo");
+
+        Check(player.TryMove(-directions[approach], true) && player.activePhase, "Phase se conserva si la casilla está libre");
+        for (int x = 0; x < grid.GetLength(0); x++)
+        for (int y = 0; y < grid.GetLength(1); y++)
+        for (int i = 0; i < directions.Length; i++)
+        {
+            var from = new Vector2Int(x, y);
+            var to = from + directions[i];
+            if (!Inside(grid, to) || Exit(grid, from) || Exit(grid, to) || !Wall(grid[x,y], directions[i]))
+                continue;
+
+            player.TeleportTo(from);
+            manager.CurrentPlan.Clear();
+            board.Refresh();
+            var kind = (ActionKind)i;
+            Click("Palette_" + kind);
+            Click("Palette_" + kind);
+            Click("Block_1_" + kind);
+            Check(GameObject.Find("PhaseExplanation").GetComponentInChildren<Text>().text.Contains("Phase disponible este turno"),
+                "El editor del movimiento indica la carga disponible");
+            Click("PhaseToggle");
+            Click("CloseEditor");
+            Check(!manager.CurrentPlan[0].UsePhase && manager.CurrentPlan[1].UsePhase, "Phase queda marcado solo en el bloque elegido");
+            float previousDelay = manager.StepDelay;
+            manager.StepDelay = .15f;
+            Click("ExecuteRoute");
+            Check(player.CellPosition == from && player.activePhase, "El primer bloque sin Phase queda bloqueado y conserva la carga");
+            while (manager.IsExecuting && manager.StepNumber < 2) yield return null;
+            Check(player.CellPosition == to && !player.activePhase && manager.Feedback.Contains("atravesaste un muro"),
+                "El bloque elegido cruza el muro y consume Phase");
+            Check(player.GetComponent<Rigidbody>().position == new Vector3(to.x, .5f, to.y),
+                "El personaje se desplaza a la casilla al otro lado del muro");
+            while (manager.IsExecuting) yield return null;
+            manager.StepDelay = previousDelay;
+            Click("PassTurn");
+            yield break;
+        }
+        Check(false, "Existe un muro interior para probar Phase");
     }
 
     private void CheckInstructions()

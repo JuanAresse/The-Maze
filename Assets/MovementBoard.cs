@@ -258,7 +258,11 @@ public class MovementBoard : MonoBehaviour
         }
         else if(block.IsMovement)
         {
-            LabelAt(_popup,"PhaseExplanation","Phase permite atravesar un muro en ESTE movimiento. Se consume solo si hay un muro y el poder está disponible.",new Vector2(.02f,.38f),new Vector2(.98f,.77f),17);
+            var player = _manager.CurrentPlayer;
+            string phaseStatus = player.activePhase
+                ? "Phase disponible este turno."
+                : player.queuedPhase ? "Phase disponible en tu próximo turno." : "Phase sin carga. Recogé el cubo celeste para usarlo en tu próximo turno.";
+            LabelAt(_popup,"PhaseExplanation",phaseStatus + "\nActivá Phase para atravesar un muro interior en este movimiento. Si el camino está libre, conservás el poder.",new Vector2(.02f,.38f),new Vector2(.98f,.77f),15);
             MazeUI.Button("PhaseToggle",_popup,block.UsePhase?"Phase en esta acción: SÍ":"Phase en esta acción: NO",new Vector2(.02f,.09f),new Vector2(.40f,.35f),()=>{if(CanEdit){block.UsePhase=!block.UsePhase;Changed();}},block.UsePhase?(Color?)MazeUI.Green:null);
         }
         else if(block.Kind==ActionKind.Shoot)
